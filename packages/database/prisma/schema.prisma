@@ -1,0 +1,1053 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ---- Enumerations ---- //
+
+enum ActionType {
+  CREATE @map("create")
+  UPDATE @map("update")
+  DELETE @map("delete")
+}
+
+enum ActorType {
+  SYSTEM @map("system")
+  MEMBER @map("member")
+  API    @map("api")
+}
+
+enum ContactRecord {
+  PERSON  @map("person")
+  COMPANY @map("company")
+}
+
+enum ContactStage {
+  LEAD           @map("lead")
+  QUALIFIED      @map("qualified")
+  OPPORTUNITY    @map("opportunity")
+  PROPOSAL       @map("proposal")
+  IN_NEGOTIATION @map("inNegotiation")
+  LOST           @map("lost")
+  WON            @map("won")
+}
+
+enum ContactTaskStatus {
+  OPEN      @map("open")
+  COMPLETED @map("completed")
+}
+
+enum DayOfWeek {
+  SUNDAY    @map("sunday")
+  MONDAY    @map("monday")
+  TUESDAY   @map("tuesday")
+  WEDNESDAY @map("wednesday")
+  THURSDAY  @map("thursday")
+  FRIDAY    @map("friday")
+  SATURDAY  @map("saturday")
+}
+
+enum FeedbackCategory {
+  SUGGESTION @map("suggestion")
+  PROBLEM    @map("problem")
+  QUESTION   @map("question")
+}
+
+enum InvitationStatus {
+  PENDING  @map("pending")
+  ACCEPTED @map("accepted")
+  REVOKED  @map("revoked")
+}
+
+enum Role {
+  MEMBER @map("member")
+  ADMIN  @map("admin")
+}
+
+enum WebhookTrigger {
+  CONTACT_CREATED @map("contactCreated")
+  CONTACT_UPDATED @map("contactUpdated")
+  CONTACT_DELETED @map("contactDeleted")
+}
+
+enum AgentArtifactType {
+  VIDEO      @map("video")
+  SCRIPT     @map("script")
+  CAPTION    @map("caption")
+  IMAGE      @map("image")
+  REPORT     @map("report")
+  TRANSCRIPT @map("transcript")
+  LINK       @map("link")
+  JSON       @map("json")
+}
+
+enum AgentAuditEventType {
+  TEAM_CREATED          @map("teamCreated")
+  DEPLOYMENT_REQUESTED  @map("deploymentRequested")
+  APPROVAL_RESOLVED     @map("approvalResolved")
+  INTEGRATION_UPSERTED  @map("integrationUpserted")
+  RUNTIME_RECONCILED    @map("runtimeReconciled")
+  RUN_STATE_TRANSITION  @map("runStateTransition")
+}
+
+enum AgentDeploymentStatus {
+  QUEUED            @map("queued")
+  PROVISIONING      @map("provisioning")
+  READY             @map("ready")
+  DEGRADED          @map("degraded")
+  FAILED            @map("failed")
+  STOPPED           @map("stopped")
+  REDEPLOY_REQUIRED @map("redeployRequired")
+}
+
+enum AgentRole {
+  SUPERVISOR @map("supervisor")
+  RESEARCHER @map("researcher")
+  CREATOR    @map("creator")
+  REVIEWER   @map("reviewer")
+  PUBLISHER  @map("publisher")
+}
+
+enum AgentRunStatus {
+  QUEUED           @map("queued")
+  RUNNING          @map("running")
+  SUCCEEDED        @map("succeeded")
+  FAILED           @map("failed")
+  WAITING_APPROVAL @map("waitingApproval")
+  CANCELLED        @map("cancelled")
+}
+
+enum AgentRunStepStatus {
+  PENDING          @map("pending")
+  RUNNING          @map("running")
+  SUCCEEDED        @map("succeeded")
+  FAILED           @map("failed")
+  WAITING_APPROVAL @map("waitingApproval")
+  SKIPPED          @map("skipped")
+}
+
+enum AgentRunTrigger {
+  MANUAL         @map("manual")
+  SCHEDULE       @map("schedule")
+  RECONCILIATION @map("reconciliation")
+  WEBHOOK        @map("webhook")
+}
+
+enum AgentRuntimeProvider {
+  KILOCLAW   @map("kiloclaw")
+  SELF_HOSTED @map("selfHosted")
+}
+
+enum AgentRuntimeStatus {
+  PENDING  @map("pending")
+  READY    @map("ready")
+  DEGRADED @map("degraded")
+  FAILED   @map("failed")
+  STOPPED  @map("stopped")
+}
+
+enum AgentStatus {
+  IDLE     @map("idle")
+  ACTIVE   @map("active")
+  PAUSED   @map("paused")
+  FAILED   @map("failed")
+  ARCHIVED @map("archived")
+}
+
+enum AgentTeamStatus {
+  DRAFT        @map("draft")
+  PROVISIONING @map("provisioning")
+  ACTIVE       @map("active")
+  PAUSED       @map("paused")
+  DEGRADED     @map("degraded")
+  FAILED       @map("failed")
+  ARCHIVED     @map("archived")
+}
+
+enum AgentTeamTemplate {
+  GENERIC_OPERATIONS @map("genericOperations")
+  TIKTOK_MARKETING   @map("tiktokMarketing")
+}
+
+enum ApprovalRequestKind {
+  PUBLISH_CONTENT   @map("publishContent")
+  CONNECT_ACCOUNT   @map("connectAccount")
+  SPEND_LIMIT       @map("spendLimit")
+  CREDENTIAL_CHANGE @map("credentialChange")
+  EXTERNAL_POST     @map("externalPost")
+}
+
+enum ApprovalRequestStatus {
+  PENDING   @map("pending")
+  APPROVED  @map("approved")
+  REJECTED  @map("rejected")
+  EXPIRED   @map("expired")
+  CANCELLED @map("cancelled")
+}
+
+enum ApprovalRiskLevel {
+  LOW      @map("low")
+  MEDIUM   @map("medium")
+  HIGH     @map("high")
+  CRITICAL @map("critical")
+}
+
+enum BrowserProfileProvider {
+  KERNEL   @map("kernel")
+  OPENCLAW @map("openclaw")
+}
+
+enum BrowserProfileStatus {
+  READY          @map("ready")
+  REQUIRES_LOGIN @map("requiresLogin")
+  SYNCING        @map("syncing")
+  ERROR          @map("error")
+  ARCHIVED       @map("archived")
+}
+
+enum MemoryEntryKind {
+  OBSERVATION @map("observation")
+  STRATEGY    @map("strategy")
+  PROMPT      @map("prompt")
+  LESSON      @map("lesson")
+  KPI         @map("kpi")
+}
+
+enum ProviderConnectionStatus {
+  DISCONNECTED @map("disconnected")
+  CONNECTING   @map("connecting")
+  CONNECTED    @map("connected")
+  ERROR        @map("error")
+}
+
+enum ProviderConnectionType {
+  KILO     @map("kilo")
+  OPENCLAW @map("openclaw")
+  KERNEL   @map("kernel")
+  TIKTOK   @map("tiktok")
+}
+
+// ---- Models ---- //
+
+model Account {
+  id                String   @id(map: "PK_Account") @default(uuid()) @db.Uuid
+  userId            String   @db.Uuid
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?  @db.Text
+  access_token      String?  @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?  @db.Text
+  session_state     String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId], map: "IX_Account_userId")
+}
+
+model ApiKey {
+  id             String       @id(map: "PK_ApiKey") @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  description    String       @db.VarChar(70)
+  hashedKey      String       @unique()
+  expiresAt      DateTime?
+  lastUsedAt     DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([organizationId], map: "IX_ApiKey_organizationId")
+}
+
+model Agent {
+  id                String       @id(map: "PK_Agent") @default(uuid()) @db.Uuid
+  organizationId    String       @db.Uuid
+  teamId            String       @db.Uuid
+  name              String       @db.VarChar(255)
+  role              AgentRole    @default(RESEARCHER)
+  systemPrompt      String?      @db.Text
+  goal              String?      @db.Text
+  providerSessionId String?      @db.VarChar(255)
+  status            AgentStatus  @default(IDLE)
+  metadata          Json?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  team              AgentTeam    @relation(fields: [teamId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  artifacts         AgentArtifact[]
+  auditLogs         AgentAuditLog[] @relation("AgentAuditLogs")
+  memories          MemoryEntry[]
+  requestedApprovals ApprovalRequest[] @relation("RequestedByAgent")
+  runSteps          AgentRunStep[]
+  supervisedRuns    AgentRun[]   @relation("SupervisorAgentRuns")
+
+  @@index([organizationId], map: "IX_Agent_organizationId")
+  @@index([teamId], map: "IX_Agent_teamId")
+}
+
+model AgentArtifact {
+  id             String           @id(map: "PK_AgentArtifact") @default(uuid()) @db.Uuid
+  organizationId String           @db.Uuid
+  teamId         String?          @db.Uuid
+  runId          String?          @db.Uuid
+  stepId         String?          @db.Uuid
+  agentId        String?          @db.Uuid
+  type           AgentArtifactType
+  title          String           @db.VarChar(255)
+  url            String?          @db.VarChar(2048)
+  storageKey     String?          @db.VarChar(1024)
+  mimeType       String?          @db.VarChar(255)
+  textContent    String?          @db.Text
+  externalId     String?          @db.VarChar(255)
+  metadata       Json?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  team           AgentTeam?       @relation(fields: [teamId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  run            AgentRun?        @relation(fields: [runId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  step           AgentRunStep?    @relation(fields: [stepId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  agent          Agent?           @relation(fields: [agentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([organizationId], map: "IX_AgentArtifact_organizationId")
+  @@index([teamId], map: "IX_AgentArtifact_teamId")
+  @@index([runId], map: "IX_AgentArtifact_runId")
+  @@index([stepId], map: "IX_AgentArtifact_stepId")
+  @@index([agentId], map: "IX_AgentArtifact_agentId")
+}
+
+model AgentAuditLog {
+  id             String             @id(map: "PK_AgentAuditLog") @default(uuid()) @db.Uuid
+  organizationId String             @db.Uuid
+  teamId         String?            @db.Uuid
+  runId          String?            @db.Uuid
+  deploymentId   String?            @db.Uuid
+  actorUserId    String?            @db.Uuid
+  actorAgentId   String?            @db.Uuid
+  eventType      AgentAuditEventType
+  summary        String             @db.VarChar(255)
+  metadata       Json?
+  createdAt      DateTime           @default(now())
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  team           AgentTeam?         @relation(fields: [teamId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  run            AgentRun?          @relation(fields: [runId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  deployment     AgentDeployment?   @relation(fields: [deploymentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  actorUser      User?              @relation("UserAgentAuditLogs", fields: [actorUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  actorAgent     Agent?             @relation("AgentAuditLogs", fields: [actorAgentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([organizationId], map: "IX_AgentAuditLog_organizationId")
+  @@index([teamId], map: "IX_AgentAuditLog_teamId")
+  @@index([runId], map: "IX_AgentAuditLog_runId")
+  @@index([deploymentId], map: "IX_AgentAuditLog_deploymentId")
+}
+
+model AgentDeployment {
+  id                   String                 @id(map: "PK_AgentDeployment") @default(uuid()) @db.Uuid
+  organizationId       String                 @db.Uuid
+  teamId               String                 @db.Uuid
+  runtimeId            String?                @db.Uuid
+  providerConnectionId String?                @db.Uuid
+  requestedByUserId    String?                @db.Uuid
+  provider             AgentRuntimeProvider   @default(KILOCLAW)
+  status               AgentDeploymentStatus  @default(QUEUED)
+  version              String?                @db.VarChar(128)
+  externalDeploymentId String?                @db.VarChar(255)
+  failureReason        String?                @db.VarChar(2000)
+  startedAt            DateTime?
+  completedAt          DateTime?
+  failedAt             DateTime?
+  metadata             Json?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  organization         Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  team                 AgentTeam              @relation(fields: [teamId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  runtime              AgentRuntime?          @relation(fields: [runtimeId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  providerConnection   ProviderConnection?    @relation(fields: [providerConnectionId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  requestedBy          User?                  @relation("RequestedAgentDeployments", fields: [requestedByUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  auditLogs            AgentAuditLog[]
+  runs                 AgentRun[]
+
+  @@index([organizationId], map: "IX_AgentDeployment_organizationId")
+  @@index([teamId], map: "IX_AgentDeployment_teamId")
+  @@index([runtimeId], map: "IX_AgentDeployment_runtimeId")
+  @@index([providerConnectionId], map: "IX_AgentDeployment_providerConnectionId")
+}
+
+model AgentRun {
+  id                String           @id(map: "PK_AgentRun") @default(uuid()) @db.Uuid
+  organizationId    String           @db.Uuid
+  teamId            String           @db.Uuid
+  runtimeId         String?          @db.Uuid
+  deploymentId      String?          @db.Uuid
+  initiatedByUserId String?          @db.Uuid
+  supervisorAgentId String?          @db.Uuid
+  status            AgentRunStatus   @default(QUEUED)
+  trigger           AgentRunTrigger  @default(MANUAL)
+  title             String?          @db.VarChar(255)
+  objective         String?          @db.Text
+  summary           String?          @db.Text
+  costUsd           Float            @default(0)
+  startedAt         DateTime?
+  completedAt       DateTime?
+  failedAt          DateTime?
+  waitingUntil      DateTime?
+  metadata          Json?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  organization      Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  team              AgentTeam        @relation(fields: [teamId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  runtime           AgentRuntime?    @relation(fields: [runtimeId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  deployment        AgentDeployment? @relation(fields: [deploymentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  initiatedBy       User?            @relation("InitiatedAgentRuns", fields: [initiatedByUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  supervisorAgent   Agent?           @relation("SupervisorAgentRuns", fields: [supervisorAgentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  approvals         ApprovalRequest[]
+  artifacts         AgentArtifact[]
+  auditLogs         AgentAuditLog[]
+  memories          MemoryEntry[]
+  steps             AgentRunStep[]
+
+  @@index([organizationId], map: "IX_AgentRun_organizationId")
+  @@index([teamId], map: "IX_AgentRun_teamId")
+  @@index([runtimeId], map: "IX_AgentRun_runtimeId")
+  @@index([deploymentId], map: "IX_AgentRun_deploymentId")
+}
+
+model AgentRunStep {
+  id                String             @id(map: "PK_AgentRunStep") @default(uuid()) @db.Uuid
+  runId             String             @db.Uuid
+  agentId           String?            @db.Uuid
+  status            AgentRunStepStatus @default(PENDING)
+  kind              String             @db.VarChar(64)
+  title             String             @db.VarChar(255)
+  detail            String?            @db.Text
+  externalReference String?            @db.VarChar(255)
+  startedAt         DateTime?
+  completedAt       DateTime?
+  input             Json?
+  output            Json?
+  error             Json?
+  metadata          Json?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  run               AgentRun           @relation(fields: [runId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  agent             Agent?             @relation(fields: [agentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  approvals         ApprovalRequest[]
+  artifacts         AgentArtifact[]
+
+  @@index([runId], map: "IX_AgentRunStep_runId")
+  @@index([agentId], map: "IX_AgentRunStep_agentId")
+}
+
+model AgentRuntime {
+  id                String               @id(map: "PK_AgentRuntime") @default(uuid()) @db.Uuid
+  organizationId    String               @db.Uuid
+  teamId            String               @db.Uuid
+  provider          AgentRuntimeProvider @default(KILOCLAW)
+  name              String               @db.VarChar(255)
+  externalRuntimeId String?              @db.VarChar(255)
+  gatewayUrl        String?              @db.VarChar(2048)
+  controlUrl        String?              @db.VarChar(2048)
+  region            String?              @db.VarChar(64)
+  machineClass      String?              @db.VarChar(64)
+  status            AgentRuntimeStatus   @default(PENDING)
+  lastHeartbeatAt   DateTime?
+  configVersion     Int                  @default(1)
+  metadata          Json?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  organization      Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  team              AgentTeam            @relation(fields: [teamId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  browserProfiles   BrowserProfile[]
+  deployments       AgentDeployment[]
+  runs              AgentRun[]
+
+  @@index([organizationId], map: "IX_AgentRuntime_organizationId")
+  @@index([teamId], map: "IX_AgentRuntime_teamId")
+}
+
+model AgentTeam {
+  id             String            @id(map: "PK_AgentTeam") @default(uuid()) @db.Uuid
+  organizationId String            @db.Uuid
+  name           String            @db.VarChar(255)
+  slug           String            @db.VarChar(255)
+  template       AgentTeamTemplate @default(GENERIC_OPERATIONS)
+  description    String?           @db.VarChar(2000)
+  desiredOutcome String?           @db.Text
+  promptPack     Json?
+  skillPack      Json?
+  cadenceCron    String?           @db.VarChar(255)
+  approvalPolicy Json?
+  status         AgentTeamStatus   @default(DRAFT)
+  lastRunAt      DateTime?
+  nextRunAt      DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  agents         Agent[]
+  approvals      ApprovalRequest[]
+  artifacts      AgentArtifact[]
+  auditLogs      AgentAuditLog[]
+  browserProfiles BrowserProfile[]
+  deployments    AgentDeployment[]
+  memories       MemoryEntry[]
+  runs           AgentRun[]
+  runtimes       AgentRuntime[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId], map: "IX_AgentTeam_organizationId")
+  @@index([status], map: "IX_AgentTeam_status")
+}
+
+model AuthenticatorApp {
+  id            String   @id(map: "PK_AuthenticatorApp") @default(uuid()) @db.Uuid
+  userId        String   @unique @db.Uuid
+  accountName   String   @db.VarChar(255)
+  issuer        String   @db.VarChar(255)
+  secret        String   @db.VarChar(255)
+  recoveryCodes String   @db.VarChar(1024)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([userId], map: "IX_AuthenticatorApp_userId")
+}
+
+model ChangeEmailRequest {
+  id        String   @id(map: "PK_ChangeEmailRequest") @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  email     String
+  expires   DateTime
+  valid     Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([userId], map: "IX_ChangeEmailRequest_userId")
+}
+
+model Contact {
+  id             String             @id(map: "PK_Contact") @default(uuid()) @db.Uuid
+  organizationId String             @db.Uuid
+  record         ContactRecord      @default(PERSON)
+  image          String?            @db.VarChar(2048)
+  name           String             @db.VarChar(255)
+  email          String?            @db.VarChar(255)
+  address        String?            @db.VarChar(255)
+  phone          String?            @db.VarChar(32)
+  stage          ContactStage       @default(LEAD)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  activities     ContactActivity[]
+  comments       ContactComment[]
+  notes          ContactNote[]
+  pageVisits     ContactPageVisit[]
+  tags           ContactTag[]
+  favorites      Favorite[]
+  tasks          ContactTask[]
+
+  @@index([organizationId], map: "IX_Contact_organizationId")
+}
+
+model ContactActivity {
+  id         String     @id(map: "PK_ContactActivity") @default(uuid()) @db.Uuid
+  contactId  String     @db.Uuid
+  actionType ActionType
+  actorId    String     @db.VarChar(255)
+  actorType  ActorType
+  metadata   Json?
+  occurredAt DateTime   @default(now())
+  contact    Contact    @relation(fields: [contactId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([contactId], map: "IX_ContactActivity_contactId")
+  @@index([occurredAt], map: "IX_ContactActivity_occurredAt")
+}
+
+model ContactComment {
+  id        String   @id(map: "PK_ContactComment") @default(uuid()) @db.Uuid
+  contactId String   @db.Uuid
+  userId    String   @db.Uuid
+  text      String   @db.VarChar(2000)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  contact   Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([contactId], map: "IX_ContactComment_contactId")
+  @@index([userId], map: "IX_ContactComment_userId")
+}
+
+model ContactImage {
+  id          String  @id(map: "PK_ContactImage") @default(uuid()) @db.Uuid
+  contactId   String  @db.Uuid
+  data        Bytes?
+  contentType String? @db.VarChar(255)
+  hash        String? @db.VarChar(64)
+
+  @@index([contactId], map: "IX_ContactImage_contactId")
+}
+
+model ContactNote {
+  id        String   @id(map: "PK_ContactNote") @default(uuid()) @db.Uuid
+  contactId String   @db.Uuid
+  userId    String   @db.Uuid
+  text      String?  @db.VarChar(8000)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  contact   Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([contactId], map: "IX_ContactNote_contactId")
+  @@index([userId], map: "IX_ContactNote_userId")
+}
+
+model ContactPageVisit {
+  id        String   @id(map: "PK_ContactPageVisit") @default(uuid()) @db.Uuid
+  contactId String   @db.Uuid
+  userId    String?  @db.Uuid
+  timestamp DateTime @default(now())
+  contact   Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([contactId], map: "IX_ContactPageVisit_contactId")
+  @@index([userId], map: "IX_ContactPageVisit_userId")
+}
+
+model ContactTag {
+  id       String    @id(map: "PK_ContactTag") @default(uuid()) @db.Uuid
+  text     String    @unique @db.VarChar(128)
+  contacts Contact[]
+}
+
+model ContactTask {
+  id          String            @id(map: "PK_ContactTask") @default(uuid()) @db.Uuid
+  contactId   String            @db.Uuid
+  title       String            @db.VarChar(255)
+  description String?           @db.VarChar(8000)
+  status      ContactTaskStatus @default(OPEN)
+  dueDate     DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  contact     Contact           @relation(fields: [contactId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([contactId], map: "IX_ContactTask_contactId")
+}
+
+model Favorite {
+  id        String  @id(map: "PK_Favorite") @default(uuid()) @db.Uuid
+  userId    String  @db.Uuid
+  contactId String  @db.Uuid
+  order     Int     @default(0)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([userId], map: "IX_Favorite_userId")
+  @@index([contactId], map: "IX_Favorite_contactId")
+}
+
+model Feedback {
+  id             String           @id(map: "PK_Feedback") @default(uuid()) @db.Uuid
+  organizationId String           @db.Uuid
+  userId         String?          @db.Uuid
+  category       FeedbackCategory @default(SUGGESTION)
+  message        String           @db.VarChar(4000)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  user           User?            @relation(fields: [userId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([organizationId], map: "IX_Feedback_organizationId")
+  @@index([userId], map: "IX_Feedback_userId")
+}
+
+model Invitation {
+  id             String           @id(map: "PK_Invitation") @default(uuid()) @db.Uuid
+  organizationId String           @db.Uuid
+  token          String           @default(uuid()) @db.Uuid
+  email          String           @db.VarChar(255)
+  role           Role             @default(MEMBER)
+  status         InvitationStatus @default(PENDING)
+  lastSentAt     DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([organizationId], map: "IX_Invitation_organizationId")
+  @@index([token], map: "IX_Invitation_token")
+}
+
+model Membership {
+  id             String       @id(map: "PK_Membership") @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  userId         String       @db.Uuid
+  role           Role         @default(MEMBER)
+  isOwner        Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([organizationId, userId])
+}
+
+model ApprovalRequest {
+  id                 String                @id(map: "PK_ApprovalRequest") @default(uuid()) @db.Uuid
+  organizationId     String                @db.Uuid
+  teamId             String                @db.Uuid
+  runId              String?               @db.Uuid
+  stepId             String?               @db.Uuid
+  requestedByAgentId String?               @db.Uuid
+  reviewedByUserId   String?               @db.Uuid
+  kind               ApprovalRequestKind
+  status             ApprovalRequestStatus @default(PENDING)
+  riskLevel          ApprovalRiskLevel     @default(MEDIUM)
+  title              String                @db.VarChar(255)
+  description        String?               @db.Text
+  requestedAction    Json?
+  expiresAt          DateTime?
+  resolvedAt         DateTime?
+  decisionReason     String?               @db.VarChar(2000)
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+  organization       Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  team               AgentTeam             @relation(fields: [teamId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  run                AgentRun?             @relation(fields: [runId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  step               AgentRunStep?         @relation(fields: [stepId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  requestedByAgent   Agent?                @relation("RequestedByAgent", fields: [requestedByAgentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  reviewedBy         User?                 @relation("ReviewedApprovalRequests", fields: [reviewedByUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([organizationId], map: "IX_ApprovalRequest_organizationId")
+  @@index([teamId], map: "IX_ApprovalRequest_teamId")
+  @@index([runId], map: "IX_ApprovalRequest_runId")
+  @@index([stepId], map: "IX_ApprovalRequest_stepId")
+}
+
+model Notification {
+  id        String    @id(map: "PK_Notification") @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  subject   String?   @db.VarChar(128)
+  content   String    @db.VarChar(8000)
+  link      String?   @db.VarChar(2000)
+  seenAt    DateTime?
+  dismissed Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([userId], map: "IX_Notification_userId")
+}
+
+model BrowserProfile {
+  id                   String                @id(map: "PK_BrowserProfile") @default(uuid()) @db.Uuid
+  organizationId       String                @db.Uuid
+  teamId               String?               @db.Uuid
+  runtimeId            String?               @db.Uuid
+  providerConnectionId String?               @db.Uuid
+  provider             BrowserProfileProvider @default(KERNEL)
+  name                 String                @db.VarChar(255)
+  externalProfileId    String?               @db.VarChar(255)
+  status               BrowserProfileStatus  @default(READY)
+  saveChanges          Boolean               @default(true)
+  managedAuth          Boolean               @default(false)
+  lastSyncedAt         DateTime?
+  metadata             Json?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  organization         Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  team                 AgentTeam?            @relation(fields: [teamId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  runtime              AgentRuntime?         @relation(fields: [runtimeId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  providerConnection   ProviderConnection?   @relation(fields: [providerConnectionId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([organizationId], map: "IX_BrowserProfile_organizationId")
+  @@index([teamId], map: "IX_BrowserProfile_teamId")
+  @@index([runtimeId], map: "IX_BrowserProfile_runtimeId")
+  @@index([providerConnectionId], map: "IX_BrowserProfile_providerConnectionId")
+}
+
+model MemoryEntry {
+  id             String          @id(map: "PK_MemoryEntry") @default(uuid()) @db.Uuid
+  organizationId String          @db.Uuid
+  teamId         String          @db.Uuid
+  runId          String?         @db.Uuid
+  agentId        String?         @db.Uuid
+  kind           MemoryEntryKind @default(OBSERVATION)
+  title          String?         @db.VarChar(255)
+  content        String          @db.Text
+  score          Float           @default(0)
+  source         String?         @db.VarChar(64)
+  metadata       Json?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  team           AgentTeam       @relation(fields: [teamId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  run            AgentRun?       @relation(fields: [runId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  agent          Agent?          @relation(fields: [agentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([organizationId], map: "IX_MemoryEntry_organizationId")
+  @@index([teamId], map: "IX_MemoryEntry_teamId")
+  @@index([runId], map: "IX_MemoryEntry_runId")
+  @@index([agentId], map: "IX_MemoryEntry_agentId")
+}
+
+model Order {
+  id             String       @id(map: "PK_Order") @db.Text
+  organizationId String       @db.Uuid
+  status         String       @db.VarChar(64)
+  provider       String       @db.VarChar(32)
+  totalAmount    Decimal      @default(0)
+  currency       String       @db.VarChar(3)
+  items          OrderItem[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId], map: "IX_Order_organizationId")
+}
+
+model OrderItem {
+  id          String  @id(map: "PK_OrderItem") @db.Text
+  orderId     String  @db.Text
+  quantity    Int
+  productId   String
+  variantId   String
+  priceAmount Float?
+  type        String?
+  model       String?
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId], map: "IX_OrderItem_orderId")
+}
+
+model Organization {
+  id                String         @id(map: "PK_Organization") @default(uuid()) @db.Uuid
+  slug              String         @unique @db.VarChar(255)
+  logo              String?        @db.VarChar(2048)
+  name              String         @db.VarChar(255)
+  address           String?        @db.VarChar(255)
+  phone             String?        @db.VarChar(32)
+  email             String?        @db.VarChar(255)
+  website           String?        @db.VarChar(2000)
+  linkedInProfile   String?        @db.VarChar(2000)
+  instagramProfile  String?        @db.VarChar(2000)
+  youTubeChannel    String?        @db.VarChar(2000)
+  xProfile          String?        @db.VarChar(2000)
+  tikTokProfile     String?        @db.VarChar(2000)
+  facebookPage      String?        @db.VarChar(2000)
+  billingCustomerId String?
+  billingEmail      String?        @db.VarChar(255)
+  billingLine1      String?        @db.VarChar(255)
+  billingLine2      String?        @db.VarChar(255)
+  billingCountry    String?        @db.VarChar(3)
+  billingPostalCode String?        @db.VarChar(16)
+  billingCity       String?        @db.VarChar(255)
+  billingState      String?        @db.VarChar(255)
+  agents            Agent[]
+  agentTeams        AgentTeam[]
+  agentRuntimes     AgentRuntime[]
+  agentDeployments  AgentDeployment[]
+  agentRuns         AgentRun[]
+  agentArtifacts    AgentArtifact[]
+  agentAuditLogs    AgentAuditLog[]
+  approvalRequests  ApprovalRequest[]
+  browserProfiles   BrowserProfile[]
+  memoryEntries     MemoryEntry[]
+  providerConnections ProviderConnection[]
+  apiKeys           ApiKey[]
+  businessHours     WorkHours[]
+  contacts          Contact[]
+  feedback          Feedback[]
+  invitations       Invitation[]
+  memberships       Membership[]
+  orders            Order[]
+  subscriptions     Subscription[]
+  webhooks          Webhook[]
+
+  @@index([billingCustomerId], map: "IX_Organization_billingCustomerId")
+}
+
+model ProviderConnection {
+  id                   String                   @id(map: "PK_ProviderConnection") @default(uuid()) @db.Uuid
+  organizationId       String                   @db.Uuid
+  type                 ProviderConnectionType
+  name                 String                   @db.VarChar(255)
+  status               ProviderConnectionStatus @default(DISCONNECTED)
+  encryptedAccessToken String?                  @db.Text
+  encryptedRefreshToken String?                 @db.Text
+  encryptedSecret      String?                  @db.Text
+  externalAccountId    String?                  @db.VarChar(255)
+  externalWorkspaceId  String?                  @db.VarChar(255)
+  scopes               Json?
+  metadata             Json?
+  lastVerifiedAt       DateTime?
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+  organization         Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  browserProfiles      BrowserProfile[]
+  deployments          AgentDeployment[]
+
+  @@unique([organizationId, type, name])
+  @@index([organizationId], map: "IX_ProviderConnection_organizationId")
+  @@index([type], map: "IX_ProviderConnection_type")
+}
+
+model OrganizationLogo {
+  id             String  @id(map: "PK_OrganizationLogo") @default(uuid()) @db.Uuid
+  organizationId String  @db.Uuid
+  data           Bytes?
+  contentType    String? @db.VarChar(255)
+  hash           String? @db.VarChar(64)
+
+  @@index([organizationId], map: "IX_OrganizationLogo_organizationId")
+}
+
+model ResetPasswordRequest {
+  id        String   @id(map: "PK_ResetPasswordRequest") @default(uuid()) @db.Uuid
+  email     String
+  expires   DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email], map: "IX_ResetPasswordRequest_email")
+}
+
+model Session {
+  id           String   @id(map: "PK_Session") @default(uuid()) @db.Uuid
+  sessionToken String   @unique
+  userId       String   @db.Uuid
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId], map: "IX_Session_userId")
+}
+
+model Subscription {
+  id                String             @id(map: "PK_Subscription") @db.Text
+  organizationId    String             @db.Uuid
+  status            String             @db.VarChar(64)
+  active            Boolean            @default(false)
+  provider          String             @db.VarChar(32)
+  cancelAtPeriodEnd Boolean            @default(false)
+  currency          String             @db.VarChar(3)
+  periodStartsAt    DateTime           @db.Timestamptz(6)
+  periodEndsAt      DateTime           @db.Timestamptz(6)
+  trialStartsAt     DateTime?          @db.Timestamptz(6)
+  trialEndsAt       DateTime?          @db.Timestamptz(6)
+  items             SubscriptionItem[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId], map: "IX_Subscription_organizationId")
+}
+
+model SubscriptionItem {
+  id             String       @id(map: "PK_SubscriptionItem") @db.Text
+  subscriptionId String       @db.Text
+  quantity       Int
+  productId      String
+  variantId      String
+  priceAmount    Float?
+  interval       String
+  intervalCount  Int
+  type           String?
+  model          String?
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId], map: "IX_SubscriptionItem_subscriptionId")
+}
+
+model User {
+  id                           String               @id(map: "PK_User") @default(uuid()) @db.Uuid
+  image                        String?              @db.VarChar(2048)
+  name                         String               @db.VarChar(64)
+  email                        String?              @unique
+  emailVerified                DateTime?
+  password                     String?              @db.VarChar(60)
+  lastLogin                    DateTime?
+  phone                        String?              @db.VarChar(32)
+  locale                       String               @default("en-US") @db.VarChar(8)
+  completedOnboarding          Boolean              @default(false)
+  enabledContactsNotifications Boolean              @default(false)
+  enabledInboxNotifications    Boolean              @default(false)
+  enabledWeeklySummary         Boolean              @default(false)
+  enabledNewsletter            Boolean              @default(false)
+  enabledProductUpdates        Boolean              @default(false)
+  createdAt                    DateTime             @default(now())
+  updatedAt                    DateTime             @updatedAt
+  accounts                     Account[]
+  authenticatorApp             AuthenticatorApp?
+  changeEmailRequests          ChangeEmailRequest[]
+  comments                     ContactComment[]
+  favorites                    Favorite[]
+  feedback                     Feedback[]
+  notes                        ContactNote[]
+  memberships                  Membership[]
+  notifications                Notification[]
+  pageVisits                   ContactPageVisit[]
+  requestedAgentDeployments    AgentDeployment[]    @relation("RequestedAgentDeployments")
+  initiatedAgentRuns           AgentRun[]           @relation("InitiatedAgentRuns")
+  reviewedApprovalRequests     ApprovalRequest[]    @relation("ReviewedApprovalRequests")
+  agentAuditLogs               AgentAuditLog[]      @relation("UserAgentAuditLogs")
+  sessions                     Session[]
+}
+
+model UserImage {
+  id          String  @id(map: "PK_UserImage") @default(uuid()) @db.Uuid
+  userId      String  @db.Uuid
+  data        Bytes?
+  contentType String? @db.VarChar(255)
+  hash        String? @db.VarChar(64)
+
+  @@index([userId], map: "IX_UserImage_userId")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Webhook {
+  id             String           @id(map: "PK_Webhook") @default(uuid()) @db.Uuid
+  organizationId String           @db.Uuid
+  url            String           @db.VarChar(2000)
+  triggers       WebhookTrigger[]
+  secret         String?          @db.VarChar(1024)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId], map: "IX_Webhook_organizationId")
+}
+
+model WorkHours {
+  id             String         @id(map: "PK_WorkHours") @default(uuid()) @db.Uuid
+  organizationId String         @db.Uuid
+  dayOfWeek      DayOfWeek      @default(SUNDAY)
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  timeSlots      WorkTimeSlot[]
+
+  @@index([organizationId], map: "IX_WorkHours_organizationId")
+}
+
+model WorkTimeSlot {
+  id          String    @id(map: "PK_WorkTimeSlot") @default(uuid()) @db.Uuid
+  workHoursId String    @db.Uuid
+  start       DateTime  @db.Time(0)
+  end         DateTime  @db.Time(0)
+  workHours   WorkHours @relation(fields: [workHoursId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([workHoursId], map: "IX_WorkTimeSlot_workHoursId")
+}

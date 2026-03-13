@@ -1,0 +1,36 @@
+{
+  "name": "@workspace/database",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "clean": "git clean -xdf .cache .turbo build dist node_modules",
+    "typecheck": "tsc --noEmit",
+    "generate": "prisma generate",
+    "migrate": "prisma migrate",
+    "push": "prisma db push --skip-generate",
+    "studio": "prisma studio --port 3003 --browser none",
+    "postinstall": "prisma generate"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "6.19.0",
+    "@prisma/client": "6.19.0",
+    "@t3-oss/env-nextjs": "0.13.8",
+    "pg": "8.16.0",
+    "zod": "4.1.13"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.30",
+    "@types/pg": "8.15.4",
+    "@workspace/eslint-config": "workspace:*",
+    "@workspace/prettier-config": "workspace:*",
+    "@workspace/typescript-config": "workspace:*",
+    "prisma": "6.19.0"
+  },
+  "prettier": "@workspace/prettier-config",
+  "exports": {
+    ".": "./src/index.ts",
+    "./keys": "./keys.ts",
+    "./client": "./src/client.ts"
+  }
+}

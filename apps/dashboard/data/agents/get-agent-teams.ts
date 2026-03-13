@@ -1,0 +1,93 @@
+import 'server-only';
+
+import { cacheLife, cacheTag } from 'next/cache';
+
+import { getAuthOrganizationContext } from '@workspace/auth/context';
+import { ApprovalRequestStatus } from '@workspace/database';
+import { prisma } from '@workspace/database/client';
+
+import { Caching, OrganizationCacheKey } from '~/data/caching';
+import type { AgentTeamDto } from '~/types/dtos/agent-team-dto';
+import { SortDirection } from '~/types/sort-direction';
+
+async function getAgentTeamsData(
+  organizationId: string
+): Promise<AgentTeamDto[]> {
+  'use cache';
+  cacheLife('default');
+  cacheTag(
+    Caching.createOrganizationTag(
+      OrganizationCacheKey.AgentTeams,
+      organizationId
+    )
+  );
+
+  const teams = await prisma.agentTeam.findMany({
+    where: { organizationId },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      template: true,
+      status: true,
+      description: true,
+      desiredOutcome: true,
+      cadenceCron: true,
+      lastRunAt: true,
+      nextRunAt: true,
+      agents: {
+        select: {
+          role: true
+        }
+      },
+      approvals: {
+        where: {
+          status: ApprovalRequestStatus.PENDING
+        },
+        select: {
+          id: true
+        }
+      },
+      runtimes: {
+        select: {
+          id: true
+        }
+      },
+      deployments: {
+        take: 1,
+        orderBy: {
+          createdAt: 'desc'
+        },
+        select: {
+          status: true
+        }
+      }
+    },
+    orderBy: {
+      createdAt: SortDirection.Asc
+    }
+  });
+
+  return teams.map((team) => ({
+    id: team.id,
+    name: team.name,
+    slug: team.slug,
+    template: team.template,
+    status: team.status,
+    description: team.description ?? undefined,
+    desiredOutcome: team.desiredOutcome ?? undefined,
+    cadenceCron: team.cadenceCron ?? undefined,
+    lastRunAt: team.lastRunAt ?? undefined,
+    nextRunAt: team.nextRunAt ?? undefined,
+    runtimeCount: team.runtimes.length,
+    agentCount: team.agents.length,
+    pendingApprovalCount: team.approvals.length,
+    latestDeploymentStatus: team.deployments[0]?.status,
+    primaryRoles: [...new Set(team.agents.map((agent) => agent.role))]
+  }));
+}
+
+export async function getAgentTeams(): Promise<AgentTeamDto[]> {
+  const ctx = await getAuthOrganizationContext();
+  return getAgentTeamsData(ctx.organization.id);
+}
