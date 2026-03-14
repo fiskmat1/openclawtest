@@ -140,6 +140,21 @@ type OpenAIResponse = {
   output?: OpenAIResponseOutputItem[];
 };
 
+type OpenAIInputTextItem = {
+  type: 'input_text';
+  text: string;
+};
+
+type OpenAIInputImageItem = {
+  type: 'input_image';
+  image_url: string;
+};
+
+type OpenAIUserInputMessage = {
+  role: 'user';
+  content: Array<OpenAIInputTextItem | OpenAIInputImageItem>;
+};
+
 function getOpenAITextOutput(response: OpenAIResponse): string | undefined {
   const messageItems = (response.output ?? []).filter(
     (item) => item.type === 'message' && item.role === 'assistant'
@@ -166,6 +181,29 @@ function getOpenAIComputerActions(item: OpenAIResponseOutputItem): ComputerActio
   }
 
   return item.action ? [item.action] : [];
+}
+
+function buildOpenAIUserTurn(input: SupervisorTaskInput): OpenAIUserInputMessage[] {
+  const content: OpenAIUserInputMessage['content'] = [
+    {
+      type: 'input_text',
+      text: input.task
+    }
+  ];
+
+  if (input.screenshotUrl) {
+    content.push({
+      type: 'input_image',
+      image_url: input.screenshotUrl
+    });
+  }
+
+  return [
+    {
+      role: 'user',
+      content
+    }
+  ];
 }
 
 function createOpenAIHeaders(args: {
@@ -672,7 +710,7 @@ export function createOpenAIComputerUseSupervisorClient(args?: {
         throw new Error('Missing OpenAI API key for the computer-use supervisor.');
       }
 
-      const requestBody = input.previousResponseId
+      const requestBody = input.previousResponseId && input.callId
         ? {
             model,
             previous_response_id: input.previousResponseId,
@@ -700,40 +738,53 @@ export function createOpenAIComputerUseSupervisorClient(args?: {
                       : {})
                   }
                 ]
-              : [],
+              : buildOpenAIUserTurn(input),
             metadata: input.metadata
           }
         : {
             model,
+            ...(input.previousResponseId && !input.screenshotUrl
+              ? {
+                  previous_response_id: input.previousResponseId
+                }
+              : {}),
             instructions: input.systemPrompt,
             tools: [
               {
                 type: 'computer'
               }
             ],
-            input: [
-              {
-                role: 'user',
-                content: [
-                  {
-                    type: 'input_text',
-                    text: input.task
-                  }
-                ]
-              }
-            ],
+            input: buildOpenAIUserTurn(input),
             metadata: input.metadata
           };
 
-      const response = await fetchJson<OpenAIResponse>(`${baseUrl}/responses`, {
-        method: 'POST',
-        headers: createOpenAIHeaders({
-          apiKey,
-          organization,
-          project
-        }),
-        body: JSON.stringify(requestBody)
-      });
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30_000);
+      let response: OpenAIResponse;
+
+      try {
+        response = await fetchJson<OpenAIResponse>(`${baseUrl}/responses`, {
+          method: 'POST',
+          headers: createOpenAIHeaders({
+            apiKey,
+            organization,
+            project
+          }),
+          body: JSON.stringify(requestBody),
+          signal: controller.signal
+        });
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          error.name === 'AbortError'
+        ) {
+          throw new Error('OpenAI computer-use supervisor request timed out.');
+        }
+
+        throw error;
+      } finally {
+        clearTimeout(timeout);
+      }
       const computerCall = getOpenAIComputerCall(response);
       const turn = computerCall
         ? {

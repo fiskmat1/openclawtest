@@ -366,6 +366,10 @@ async function bootstrapRuntimeDesktop(args: {
   }
 
   const briefPath = '/home/user/Desktop/openclaw-team-brief.html';
+  const runtimeMetadata = toRecord(runtime.metadata);
+  const shouldOpenBrief =
+    runtimeMetadata.desktopBootstrappedRuntimeId !== runtime.externalRuntimeId;
+  const bootstrappedAt = new Date().toISOString();
   const sandbox = await Sandbox.connect(runtime.externalRuntimeId, {
     apiKey
   });
@@ -390,10 +394,12 @@ async function bootstrapRuntimeDesktop(args: {
     content: html
   });
 
-  try {
-    await sandbox.launch('google-chrome', `file://${briefPath}`);
-  } catch {
-    await sandbox.open(briefPath);
+  if (shouldOpenBrief) {
+    try {
+      await sandbox.launch('google-chrome', `file://${briefPath}`);
+    } catch {
+      await sandbox.open(briefPath);
+    }
   }
 
   await prisma.agentRuntime.update({
@@ -402,9 +408,15 @@ async function bootstrapRuntimeDesktop(args: {
     },
     data: {
       metadata: {
-        ...toRecord(runtime.metadata),
+        ...runtimeMetadata,
         desktopBriefPath: briefPath,
-        desktopBootstrappedAt: new Date().toISOString()
+        desktopBriefUpdatedAt: bootstrappedAt,
+        ...(shouldOpenBrief
+          ? {
+              desktopBootstrappedAt: bootstrappedAt,
+              desktopBootstrappedRuntimeId: runtime.externalRuntimeId
+            }
+          : {})
       } as Prisma.InputJsonValue
     }
   });
@@ -423,6 +435,7 @@ async function notifyTeam(args: {
 const RUNTIME_LOCK_TTL_MS = 1000 * 60 * 10;
 const SUPERVISOR_TICK_INTERVAL_MS = 1000 * 60 * 5;
 const RUNTIME_HEARTBEAT_INTERVAL_MS = 1000 * 60 * 5;
+const STALE_RUNNING_RUN_THRESHOLD_MS = 1000 * 60 * 20;
 
 function truncateText(value: string, maxLength: number): string {
   return value.length > maxLength ? `${value.slice(0, maxLength - 1)}…` : value;
@@ -602,8 +615,44 @@ async function buildSupervisorTask(args: {
   const promptPack = toRecord(args.team.promptPack);
   const supervisorPrompt =
     typeof promptPack.supervisor === 'string' ? promptPack.supervisor : undefined;
+  const shouldForceVisibleAction =
+    typeof supervisorState.lastActionCount !== 'number' ||
+    supervisorState.lastActionCount === 0;
+  const previousSupervisorSummary =
+    typeof supervisorState.lastOutput === 'string'
+      ? truncateText(supervisorState.lastOutput, shouldForceVisibleAction ? 180 : 320)
+      : 'none';
+  const memorySummary = recentMemories
+    .slice(0, shouldForceVisibleAction ? 2 : 3)
+    .map((entry) =>
+      truncateText(
+        `${entry.kind.toLowerCase()}: ${entry.title} - ${entry.content}`,
+        180
+      )
+    );
+  const artifactSummary = recentArtifacts
+    .slice(0, shouldForceVisibleAction ? 2 : 3)
+    .map((artifact) =>
+      truncateText(
+        `${artifact.type.toLowerCase()}: ${artifact.title}${
+          artifact.url ? ` (${artifact.url})` : ''
+        }${artifact.textContent ? ` - ${artifact.textContent}` : ''}`,
+        180
+      )
+    );
+  const approvalSummary = pendingApprovals.map((approval) =>
+    truncateText(
+      `${approval.id}: ${approval.title}${
+        approval.description ? ` - ${approval.description}` : ''
+      }`,
+      180
+    )
+  );
 
   return [
+    shouldForceVisibleAction
+      ? 'Computer-use objective: take at least one safe desktop action before any text summary. Your first response should be a computer action, not only prose.'
+      : 'Computer-use objective: continue advancing the desktop state with concrete actions when useful.',
     `Run reason: ${args.reason}`,
     `Team: ${args.team.name}`,
     `Desired outcome: ${args.team.desiredOutcome ?? 'No desired outcome recorded.'}`,
@@ -621,43 +670,15 @@ async function buildSupervisorTask(args: {
     args.operatorMessage
       ? `Latest operator message: ${args.operatorMessage}`
       : 'Latest operator message: none',
-    formatStructuredList(
-      'Recent memory',
-      recentMemories.map((entry) =>
-        truncateText(
-          `${entry.kind.toLowerCase()}: ${entry.title} - ${entry.content}`,
-          320
-        )
-      )
-    ),
-    formatStructuredList(
-      'Recent artifacts',
-      recentArtifacts.map((artifact) =>
-        truncateText(
-          `${artifact.type.toLowerCase()}: ${artifact.title}${
-            artifact.url ? ` (${artifact.url})` : ''
-          }${artifact.textContent ? ` - ${artifact.textContent}` : ''}`,
-          320
-        )
-      )
-    ),
-    formatStructuredList(
-      'Pending approvals',
-      pendingApprovals.map((approval) =>
-        truncateText(
-          `${approval.id}: ${approval.title}${
-            approval.description ? ` - ${approval.description}` : ''
-          }`,
-          240
-        )
-      )
-    ),
-    `Previous supervisor summary: ${
-      typeof supervisorState.lastOutput === 'string'
-        ? truncateText(supervisorState.lastOutput, 600)
-        : 'none'
-    }`,
+    formatStructuredList('Recent memory', memorySummary),
+    formatStructuredList('Recent artifacts', artifactSummary),
+    formatStructuredList('Pending approvals', approvalSummary),
+    `Previous supervisor summary: ${previousSupervisorSummary}`,
     'Use the E2B desktop to inspect the live runtime and gather visual context before acting.',
+    shouldForceVisibleAction
+      ? 'If the desktop is already on the runtime brief, move the UI forward: scroll, switch tabs, open a terminal, inspect a file, or verify a deliverable from the desktop.'
+      : 'Prefer concrete desktop actions over restating the desktop brief when it is safe to continue.',
+    'Reuse the current desktop state when possible. Do not reopen the same brief page or duplicate tabs unless the sandbox has changed.',
     'Then produce a concise supervisor directive for the OpenClaw specialist mesh, along with a short operator-facing status update.',
     'If the next action would create external risk, stop and explain exactly what approval is required.',
     supervisorPrompt ? `Supervisor instructions:\n${supervisorPrompt}` : ''
@@ -801,29 +822,32 @@ async function runComputerUseSupervisor(args: {
     reason: args.reason,
     operatorMessage: args.operatorMessage
   });
-  const result = await runSupervisorLoop({
+  const systemPrompt =
+    typeof toRecord(args.team.promptPack).supervisor === 'string'
+      ? String(toRecord(args.team.promptPack).supervisor)
+      : 'You are the always-on computer-use supervisor for this team.';
+  const maxTurns =
+    typeof supervisorConfig.maxTurnsPerTick === 'number'
+      ? supervisorConfig.maxTurnsPerTick
+      : 8;
+  const supervisor = createOpenAIComputerUseSupervisorClient({
+    apiKey: openAiApiKey,
+    model:
+      typeof supervisorConfig.model === 'string'
+        ? supervisorConfig.model
+        : undefined
+  });
+  let result = await runSupervisorLoop({
     sandboxId: args.runtime.externalRuntimeId,
     e2bApiKey,
-    supervisor: createOpenAIComputerUseSupervisorClient({
-      apiKey: openAiApiKey,
-      model:
-        typeof supervisorConfig.model === 'string'
-          ? supervisorConfig.model
-          : undefined
-    }),
+    supervisor,
     task,
-    systemPrompt:
-      typeof toRecord(args.team.promptPack).supervisor === 'string'
-        ? String(toRecord(args.team.promptPack).supervisor)
-        : 'You are the always-on computer-use supervisor for this team.',
+    systemPrompt,
     previousResponseId:
       typeof runtimeState.previousResponseId === 'string'
         ? runtimeState.previousResponseId
         : undefined,
-    maxTurns:
-      typeof supervisorConfig.maxTurnsPerTick === 'number'
-        ? supervisorConfig.maxTurnsPerTick
-        : 8,
+    maxTurns,
     autoAcknowledgeSafetyChecks: false,
     metadata: {
       teamId: args.team.id,
@@ -831,6 +855,30 @@ async function runComputerUseSupervisor(args: {
       runId: args.run.id
     }
   });
+
+  if (result.actionCount === 0 && result.pendingSafetyChecks.length === 0) {
+    result = await runSupervisorLoop({
+      sandboxId: args.runtime.externalRuntimeId,
+      e2bApiKey,
+      supervisor,
+      task: [
+        task,
+        'The previous supervisor attempt did not take any computer actions.',
+        'You must take at least one safe desktop action in this retry before responding.',
+        'Examples: switch tabs, open a terminal, inspect a file, or navigate to the relevant on-screen resource.',
+        'Do not only summarize the current brief.'
+      ].join('\n\n'),
+      systemPrompt,
+      maxTurns: Math.max(1, Math.min(maxTurns, 4)),
+      autoAcknowledgeSafetyChecks: false,
+      metadata: {
+        teamId: args.team.id,
+        runtimeId: args.runtime.id,
+        runId: args.run.id,
+        retry: 'forced-visible-action'
+      }
+    });
+  }
 
   await prisma.agentRuntime.update({
     where: {
@@ -840,7 +888,7 @@ async function runComputerUseSupervisor(args: {
       lastHeartbeatAt: new Date(),
       supervisorState: {
         ...runtimeState,
-        previousResponseId: result.responseId,
+        previousResponseId: result.actionCount > 0 ? result.responseId : null,
         lastOutput: result.outputText,
         lastSupervisorAt: new Date().toISOString(),
         lastActionCount: result.actionCount
@@ -2048,6 +2096,21 @@ async function handleSupervisorTickJob(payload: unknown): Promise<void> {
   ) {
     return;
   }
+
+  await prisma.agentRun.updateMany({
+    where: {
+      teamId: team.id,
+      status: AgentRunStatus.RUNNING,
+      updatedAt: {
+        lt: new Date(Date.now() - STALE_RUNNING_RUN_THRESHOLD_MS)
+      }
+    },
+    data: {
+      status: AgentRunStatus.FAILED,
+      summary: 'Run marked failed after becoming stale during worker recovery.',
+      failedAt: new Date()
+    }
+  });
 
   const activeRun = await prisma.agentRun.findFirst({
     where: {

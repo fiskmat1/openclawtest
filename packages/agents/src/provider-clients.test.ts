@@ -327,10 +327,21 @@ test('OpenAI computer-use supervisor client normalizes response turns', async ()
     const body = JSON.parse(String(init?.body)) as {
       model: string;
       tools: Array<{ type: string }>;
+      input: Array<{
+        role?: string;
+        content?: Array<{
+          type?: string;
+          text?: string;
+          image_url?: string;
+        }>;
+      }>;
     };
 
     assert.equal(body.model, 'gpt-5.4');
     assert.equal(body.tools[0]?.type, 'computer');
+    assert.equal(body.input[0]?.content?.[0]?.type, 'input_text');
+    assert.equal(body.input[0]?.content?.[1]?.type, 'input_image');
+    assert.equal(body.input[0]?.content?.[1]?.image_url, 'data:image/png;base64,abc');
 
     return new Response(
       JSON.stringify({
@@ -380,13 +391,97 @@ test('OpenAI computer-use supervisor client normalizes response turns', async ()
     const client = createOpenAIComputerUseSupervisorClient();
     const result = await client.createTurn({
       task: 'Inspect the desktop.',
-      systemPrompt: 'You supervise the runtime.'
+      systemPrompt: 'You supervise the runtime.',
+      screenshotUrl: 'data:image/png;base64,abc'
     });
 
     assert.equal(result.responseId, 'resp_123');
     assert.equal(result.outputText, 'Opened the app.');
     assert.equal(result.turns[0]?.callId, 'call_123');
     assert.equal(result.turns[0]?.actions[0]?.type, 'click');
+  } finally {
+    globalThis.fetch = originalFetch;
+    process.env.AGENTS_OPENAI_API_KEY = originalApiKey;
+    process.env.AGENTS_OPENAI_MODEL = originalModel;
+    process.env.AGENTS_OPENAI_BASE_URL = originalBaseUrl;
+    process.env.AGENTS_KILO_API_BASE_URL = originalKiloBaseUrl;
+    process.env.AGENTS_OPENCLAW_RPC_ENDPOINT = originalOpenClawEndpoint;
+  }
+});
+
+test('OpenAI computer-use supervisor client sends screenshot on text-only continuation', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.AGENTS_OPENAI_API_KEY;
+  const originalModel = process.env.AGENTS_OPENAI_MODEL;
+  const originalBaseUrl = process.env.AGENTS_OPENAI_BASE_URL;
+  const originalKiloBaseUrl = process.env.AGENTS_KILO_API_BASE_URL;
+  const originalOpenClawEndpoint = process.env.AGENTS_OPENCLAW_RPC_ENDPOINT;
+
+  globalThis.fetch = (async (_input, init) => {
+    const body = JSON.parse(String(init?.body)) as {
+      previous_response_id?: string;
+      input: Array<{
+        role?: string;
+        content?: Array<{
+          type?: string;
+          text?: string;
+          image_url?: string;
+        }>;
+      }>;
+    };
+
+    assert.equal(body.previous_response_id, undefined);
+    assert.equal(body.input[0]?.role, 'user');
+    assert.equal(body.input[0]?.content?.[0]?.type, 'input_text');
+    assert.equal(body.input[0]?.content?.[1]?.type, 'input_image');
+    assert.equal(body.input[0]?.content?.[1]?.image_url, 'data:image/png;base64,xyz');
+
+    return new Response(
+      JSON.stringify({
+        id: 'resp_next',
+        output: [
+          {
+            type: 'message',
+            role: 'assistant',
+            content: [
+              {
+                type: 'output_text',
+                text: 'Continuing from the refreshed screenshot.'
+              }
+            ]
+          }
+        ]
+      }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+  }) as typeof fetch;
+
+  try {
+    process.env.AGENTS_OPENAI_API_KEY = 'test-openai-key';
+    process.env.AGENTS_OPENAI_MODEL = 'gpt-5.4';
+    process.env.AGENTS_OPENAI_BASE_URL = 'https://api.openai.com/v1';
+    process.env.AGENTS_KILO_API_BASE_URL = 'https://kilo.example.com';
+    process.env.AGENTS_OPENCLAW_RPC_ENDPOINT = 'https://openclaw.example.com/rpc';
+
+    const client = createOpenAIComputerUseSupervisorClient();
+    const result = await client.createTurn({
+      task: 'Continue supervising the runtime.',
+      systemPrompt: 'You supervise the runtime.',
+      previousResponseId: 'resp_prev',
+      screenshotUrl: 'data:image/png;base64,xyz'
+    });
+
+    assert.equal(result.responseId, 'resp_next');
+    assert.equal(
+      result.outputText,
+      'Continuing from the refreshed screenshot.'
+    );
+    assert.equal(result.turns[0]?.actions.length, 0);
   } finally {
     globalThis.fetch = originalFetch;
     process.env.AGENTS_OPENAI_API_KEY = originalApiKey;

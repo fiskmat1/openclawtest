@@ -154,7 +154,7 @@ export async function runSupervisorLoop(
       systemPrompt: input.systemPrompt,
       previousResponseId,
       callId,
-      screenshotUrl: callId ? screenshotUrl : undefined,
+      screenshotUrl,
       acknowledgedSafetyChecks,
       autoAcknowledgeSafetyChecks: input.autoAcknowledgeSafetyChecks,
       metadata: input.metadata
