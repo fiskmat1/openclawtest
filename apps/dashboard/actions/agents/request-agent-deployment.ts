@@ -8,11 +8,11 @@ import {
 } from '@workspace/database';
 import { prisma } from '@workspace/database/client';
 
-import { authOrganizationActionClient } from '~/actions/safe-action';
 import {
   assertCanManageAgents,
   updateAgentCacheTags
 } from '~/actions/agents/_helpers';
+import { authOrganizationActionClient } from '~/actions/safe-action';
 import { requestAgentDeploymentSchema } from '~/schemas/agents/request-agent-deployment-schema';
 
 export const requestAgentDeployment = authOrganizationActionClient
@@ -39,7 +39,7 @@ export const requestAgentDeployment = authOrganizationActionClient
       data: {
         organizationId: ctx.organization.id,
         teamId: team.id,
-        provider: parsedInput.provider ?? AgentRuntimeProvider.KILOCLAW,
+        provider: parsedInput.provider ?? AgentRuntimeProvider.E2B,
         status: AgentDeploymentStatus.QUEUED,
         providerConnectionId: parsedInput.providerConnectionId ?? null,
         requestedByUserId: ctx.session.user.id

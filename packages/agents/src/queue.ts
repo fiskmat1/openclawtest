@@ -43,7 +43,13 @@ export const publishArtifactJobPayloadSchema = z.object({
 
 export const processProviderWebhookJobPayloadSchema = z.object({
   organizationId: uuid.optional(),
-  provider: z.enum(['kilo', 'openclaw', 'kernel', 'tiktok']),
+  teamId: uuid.optional(),
+  runtimeId: uuid.optional(),
+  deploymentId: uuid.optional(),
+  providerConnectionId: uuid.optional(),
+  channelId: uuid.optional(),
+  sessionKey: z.string().trim().min(1).max(255).optional(),
+  provider: z.enum(['kilo', 'e2b', 'openclaw', 'kernel', 'telegram', 'tiktok']),
   payload: z.record(z.string(), z.unknown())
 });
 

@@ -1,0 +1,25 @@
+services:
+  openclaw:
+    image: ${openclaw_image}
+    restart: unless-stopped
+    environment:
+${openclaw_environment_yaml}
+    expose:
+      - "${openclaw_port}"
+
+  caddy:
+    image: caddy:2.10.2
+    restart: unless-stopped
+    depends_on:
+      - openclaw
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

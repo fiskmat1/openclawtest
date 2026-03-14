@@ -1,0 +1,29 @@
+#cloud-config
+package_update: true
+packages:
+  - ca-certificates
+  - curl
+  - gnupg
+
+bootcmd:
+  - mkdir -p ${compose_path}
+
+write_files:
+  - path: ${compose_path}/docker-compose.yaml
+    permissions: "0644"
+    owner: root:root
+    content: |
+${indent(6, docker_compose)}
+  - path: ${compose_path}/Caddyfile
+    permissions: "0644"
+    owner: root:root
+    content: |
+${indent(6, caddyfile)}
+
+runcmd:
+  - mkdir -p ${compose_path}
+  - curl -fsSL https://get.docker.com | sh
+  - systemctl enable docker
+  - systemctl start docker
+  - docker compose -f ${compose_path}/docker-compose.yaml pull
+  - docker compose -f ${compose_path}/docker-compose.yaml up -d

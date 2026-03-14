@@ -26,19 +26,35 @@ export async function POST(
   }
 
   const body = await request.json().catch(() => null);
-  const searchOrganizationId = request.nextUrl.searchParams.get('organizationId');
+  const searchOrganizationId =
+    request.nextUrl.searchParams.get('organizationId');
   const searchTeamId = request.nextUrl.searchParams.get('teamId');
+  const searchRuntimeId = request.nextUrl.searchParams.get('runtimeId');
+  const searchDeploymentId = request.nextUrl.searchParams.get('deploymentId');
   const payload = isRecord(body) ? body : {};
   const organizationId =
     searchOrganizationId ??
-    (typeof payload.organizationId === 'string' ? payload.organizationId : undefined);
+    (typeof payload.organizationId === 'string'
+      ? payload.organizationId
+      : undefined);
   const teamId =
-    searchTeamId ?? (typeof payload.teamId === 'string' ? payload.teamId : undefined);
+    searchTeamId ??
+    (typeof payload.teamId === 'string' ? payload.teamId : undefined);
+  const runtimeId =
+    searchRuntimeId ??
+    (typeof payload.runtimeId === 'string' ? payload.runtimeId : undefined);
+  const deploymentId =
+    searchDeploymentId ??
+    (typeof payload.deploymentId === 'string'
+      ? payload.deploymentId
+      : undefined);
 
   await sendAgentJob(AgentJobName.ProcessProviderWebhook, {
     provider,
     organizationId,
     teamId,
+    runtimeId,
+    deploymentId,
     payload
   });
 

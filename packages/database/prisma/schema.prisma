@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
@@ -87,12 +87,12 @@ enum AgentArtifactType {
 }
 
 enum AgentAuditEventType {
-  TEAM_CREATED          @map("teamCreated")
-  DEPLOYMENT_REQUESTED  @map("deploymentRequested")
-  APPROVAL_RESOLVED     @map("approvalResolved")
-  INTEGRATION_UPSERTED  @map("integrationUpserted")
-  RUNTIME_RECONCILED    @map("runtimeReconciled")
-  RUN_STATE_TRANSITION  @map("runStateTransition")
+  TEAM_CREATED         @map("teamCreated")
+  DEPLOYMENT_REQUESTED @map("deploymentRequested")
+  APPROVAL_RESOLVED    @map("approvalResolved")
+  INTEGRATION_UPSERTED @map("integrationUpserted")
+  RUNTIME_RECONCILED   @map("runtimeReconciled")
+  RUN_STATE_TRANSITION @map("runStateTransition")
 }
 
 enum AgentDeploymentStatus {
@@ -139,7 +139,8 @@ enum AgentRunTrigger {
 }
 
 enum AgentRuntimeProvider {
-  KILOCLAW   @map("kiloclaw")
+  KILOCLAW    @map("kiloclaw")
+  E2B         @map("e2b")
   SELF_HOSTED @map("selfHosted")
 }
 
@@ -227,9 +228,21 @@ enum ProviderConnectionStatus {
 
 enum ProviderConnectionType {
   KILO     @map("kilo")
+  E2B      @map("e2b")
   OPENCLAW @map("openclaw")
   KERNEL   @map("kernel")
+  TELEGRAM @map("telegram")
   TIKTOK   @map("tiktok")
+}
+
+enum AgentControlChannelType {
+  TELEGRAM @map("telegram")
+}
+
+enum AgentControlChannelStatus {
+  ACTIVE @map("active")
+  PAUSED @map("paused")
+  ERROR  @map("error")
 }
 
 // ---- Models ---- //
@@ -270,53 +283,53 @@ model ApiKey {
 }
 
 model Agent {
-  id                String       @id(map: "PK_Agent") @default(uuid()) @db.Uuid
-  organizationId    String       @db.Uuid
-  teamId            String       @db.Uuid
-  name              String       @db.VarChar(255)
-  role              AgentRole    @default(RESEARCHER)
-  systemPrompt      String?      @db.Text
-  goal              String?      @db.Text
-  providerSessionId String?      @db.VarChar(255)
-  status            AgentStatus  @default(IDLE)
-  metadata          Json?
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
-  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  team              AgentTeam    @relation(fields: [teamId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  artifacts         AgentArtifact[]
-  auditLogs         AgentAuditLog[] @relation("AgentAuditLogs")
-  memories          MemoryEntry[]
+  id                 String            @id(map: "PK_Agent") @default(uuid()) @db.Uuid
+  organizationId     String            @db.Uuid
+  teamId             String            @db.Uuid
+  name               String            @db.VarChar(255)
+  role               AgentRole         @default(RESEARCHER)
+  systemPrompt       String?           @db.Text
+  goal               String?           @db.Text
+  providerSessionId  String?           @db.VarChar(255)
+  status             AgentStatus       @default(IDLE)
+  metadata           Json?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  organization       Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  team               AgentTeam         @relation(fields: [teamId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  artifacts          AgentArtifact[]
+  auditLogs          AgentAuditLog[]   @relation("AgentAuditLogs")
+  memories           MemoryEntry[]
   requestedApprovals ApprovalRequest[] @relation("RequestedByAgent")
-  runSteps          AgentRunStep[]
-  supervisedRuns    AgentRun[]   @relation("SupervisorAgentRuns")
+  runSteps           AgentRunStep[]
+  supervisedRuns     AgentRun[]        @relation("SupervisorAgentRuns")
 
   @@index([organizationId], map: "IX_Agent_organizationId")
   @@index([teamId], map: "IX_Agent_teamId")
 }
 
 model AgentArtifact {
-  id             String           @id(map: "PK_AgentArtifact") @default(uuid()) @db.Uuid
-  organizationId String           @db.Uuid
-  teamId         String?          @db.Uuid
-  runId          String?          @db.Uuid
-  stepId         String?          @db.Uuid
-  agentId        String?          @db.Uuid
+  id             String            @id(map: "PK_AgentArtifact") @default(uuid()) @db.Uuid
+  organizationId String            @db.Uuid
+  teamId         String?           @db.Uuid
+  runId          String?           @db.Uuid
+  stepId         String?           @db.Uuid
+  agentId        String?           @db.Uuid
   type           AgentArtifactType
-  title          String           @db.VarChar(255)
-  url            String?          @db.VarChar(2048)
-  storageKey     String?          @db.VarChar(1024)
-  mimeType       String?          @db.VarChar(255)
-  textContent    String?          @db.Text
-  externalId     String?          @db.VarChar(255)
+  title          String            @db.VarChar(255)
+  url            String?           @db.VarChar(2048)
+  storageKey     String?           @db.VarChar(1024)
+  mimeType       String?           @db.VarChar(255)
+  textContent    String?           @db.Text
+  externalId     String?           @db.VarChar(255)
   metadata       Json?
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  team           AgentTeam?       @relation(fields: [teamId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  run            AgentRun?        @relation(fields: [runId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  step           AgentRunStep?    @relation(fields: [stepId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  agent          Agent?           @relation(fields: [agentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  team           AgentTeam?        @relation(fields: [teamId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  run            AgentRun?         @relation(fields: [runId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  step           AgentRunStep?     @relation(fields: [stepId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  agent          Agent?            @relation(fields: [agentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@index([organizationId], map: "IX_AgentArtifact_organizationId")
   @@index([teamId], map: "IX_AgentArtifact_teamId")
@@ -326,23 +339,23 @@ model AgentArtifact {
 }
 
 model AgentAuditLog {
-  id             String             @id(map: "PK_AgentAuditLog") @default(uuid()) @db.Uuid
-  organizationId String             @db.Uuid
-  teamId         String?            @db.Uuid
-  runId          String?            @db.Uuid
-  deploymentId   String?            @db.Uuid
-  actorUserId    String?            @db.Uuid
-  actorAgentId   String?            @db.Uuid
+  id             String              @id(map: "PK_AgentAuditLog") @default(uuid()) @db.Uuid
+  organizationId String              @db.Uuid
+  teamId         String?             @db.Uuid
+  runId          String?             @db.Uuid
+  deploymentId   String?             @db.Uuid
+  actorUserId    String?             @db.Uuid
+  actorAgentId   String?             @db.Uuid
   eventType      AgentAuditEventType
-  summary        String             @db.VarChar(255)
+  summary        String              @db.VarChar(255)
   metadata       Json?
-  createdAt      DateTime           @default(now())
-  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  team           AgentTeam?         @relation(fields: [teamId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  run            AgentRun?          @relation(fields: [runId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  deployment     AgentDeployment?   @relation(fields: [deploymentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  actorUser      User?              @relation("UserAgentAuditLogs", fields: [actorUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  actorAgent     Agent?             @relation("AgentAuditLogs", fields: [actorAgentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  createdAt      DateTime            @default(now())
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  team           AgentTeam?          @relation(fields: [teamId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  run            AgentRun?           @relation(fields: [runId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  deployment     AgentDeployment?    @relation(fields: [deploymentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  actorUser      User?               @relation("UserAgentAuditLogs", fields: [actorUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  actorAgent     Agent?              @relation("AgentAuditLogs", fields: [actorAgentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@index([organizationId], map: "IX_AgentAuditLog_organizationId")
   @@index([teamId], map: "IX_AgentAuditLog_teamId")
@@ -351,28 +364,28 @@ model AgentAuditLog {
 }
 
 model AgentDeployment {
-  id                   String                 @id(map: "PK_AgentDeployment") @default(uuid()) @db.Uuid
-  organizationId       String                 @db.Uuid
-  teamId               String                 @db.Uuid
-  runtimeId            String?                @db.Uuid
-  providerConnectionId String?                @db.Uuid
-  requestedByUserId    String?                @db.Uuid
-  provider             AgentRuntimeProvider   @default(KILOCLAW)
-  status               AgentDeploymentStatus  @default(QUEUED)
-  version              String?                @db.VarChar(128)
-  externalDeploymentId String?                @db.VarChar(255)
-  failureReason        String?                @db.VarChar(2000)
+  id                   String                @id(map: "PK_AgentDeployment") @default(uuid()) @db.Uuid
+  organizationId       String                @db.Uuid
+  teamId               String                @db.Uuid
+  runtimeId            String?               @db.Uuid
+  providerConnectionId String?               @db.Uuid
+  requestedByUserId    String?               @db.Uuid
+  provider             AgentRuntimeProvider  @default(E2B)
+  status               AgentDeploymentStatus @default(QUEUED)
+  version              String?               @db.VarChar(128)
+  externalDeploymentId String?               @db.VarChar(255)
+  failureReason        String?               @db.VarChar(2000)
   startedAt            DateTime?
   completedAt          DateTime?
   failedAt             DateTime?
   metadata             Json?
-  createdAt            DateTime               @default(now())
-  updatedAt            DateTime               @updatedAt
-  organization         Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  team                 AgentTeam              @relation(fields: [teamId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  runtime              AgentRuntime?          @relation(fields: [runtimeId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  providerConnection   ProviderConnection?    @relation(fields: [providerConnectionId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  requestedBy          User?                  @relation("RequestedAgentDeployments", fields: [requestedByUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  organization         Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  team                 AgentTeam             @relation(fields: [teamId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  runtime              AgentRuntime?         @relation(fields: [runtimeId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  providerConnection   ProviderConnection?   @relation(fields: [providerConnectionId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  requestedBy          User?                 @relation("RequestedAgentDeployments", fields: [requestedByUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   auditLogs            AgentAuditLog[]
   runs                 AgentRun[]
 
@@ -383,32 +396,32 @@ model AgentDeployment {
 }
 
 model AgentRun {
-  id                String           @id(map: "PK_AgentRun") @default(uuid()) @db.Uuid
-  organizationId    String           @db.Uuid
-  teamId            String           @db.Uuid
-  runtimeId         String?          @db.Uuid
-  deploymentId      String?          @db.Uuid
-  initiatedByUserId String?          @db.Uuid
-  supervisorAgentId String?          @db.Uuid
-  status            AgentRunStatus   @default(QUEUED)
-  trigger           AgentRunTrigger  @default(MANUAL)
-  title             String?          @db.VarChar(255)
-  objective         String?          @db.Text
-  summary           String?          @db.Text
-  costUsd           Float            @default(0)
+  id                String            @id(map: "PK_AgentRun") @default(uuid()) @db.Uuid
+  organizationId    String            @db.Uuid
+  teamId            String            @db.Uuid
+  runtimeId         String?           @db.Uuid
+  deploymentId      String?           @db.Uuid
+  initiatedByUserId String?           @db.Uuid
+  supervisorAgentId String?           @db.Uuid
+  status            AgentRunStatus    @default(QUEUED)
+  trigger           AgentRunTrigger   @default(MANUAL)
+  title             String?           @db.VarChar(255)
+  objective         String?           @db.Text
+  summary           String?           @db.Text
+  costUsd           Float             @default(0)
   startedAt         DateTime?
   completedAt       DateTime?
   failedAt          DateTime?
   waitingUntil      DateTime?
   metadata          Json?
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-  organization      Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  team              AgentTeam        @relation(fields: [teamId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  runtime           AgentRuntime?    @relation(fields: [runtimeId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  deployment        AgentDeployment? @relation(fields: [deploymentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  initiatedBy       User?            @relation("InitiatedAgentRuns", fields: [initiatedByUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  supervisorAgent   Agent?           @relation("SupervisorAgentRuns", fields: [supervisorAgentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  organization      Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  team              AgentTeam         @relation(fields: [teamId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  runtime           AgentRuntime?     @relation(fields: [runtimeId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  deployment        AgentDeployment?  @relation(fields: [deploymentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  initiatedBy       User?             @relation("InitiatedAgentRuns", fields: [initiatedByUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  supervisorAgent   Agent?            @relation("SupervisorAgentRuns", fields: [supervisorAgentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   approvals         ApprovalRequest[]
   artifacts         AgentArtifact[]
   auditLogs         AgentAuditLog[]
@@ -448,25 +461,26 @@ model AgentRunStep {
 }
 
 model AgentRuntime {
-  id                String               @id(map: "PK_AgentRuntime") @default(uuid()) @db.Uuid
-  organizationId    String               @db.Uuid
-  teamId            String               @db.Uuid
-  provider          AgentRuntimeProvider @default(KILOCLAW)
-  name              String               @db.VarChar(255)
-  externalRuntimeId String?              @db.VarChar(255)
-  gatewayUrl        String?              @db.VarChar(2048)
-  controlUrl        String?              @db.VarChar(2048)
-  region            String?              @db.VarChar(64)
-  machineClass      String?              @db.VarChar(64)
-  status            AgentRuntimeStatus   @default(PENDING)
+  id                String                @id(map: "PK_AgentRuntime") @default(uuid()) @db.Uuid
+  organizationId    String                @db.Uuid
+  teamId            String                @db.Uuid
+  provider          AgentRuntimeProvider  @default(E2B)
+  name              String                @db.VarChar(255)
+  externalRuntimeId String?               @db.VarChar(255)
+  gatewayUrl        String?               @db.VarChar(2048)
+  controlUrl        String?               @db.VarChar(2048)
+  region            String?               @db.VarChar(64)
+  machineClass      String?               @db.VarChar(64)
+  status            AgentRuntimeStatus    @default(PENDING)
   lastHeartbeatAt   DateTime?
-  configVersion     Int                  @default(1)
+  configVersion     Int                   @default(1)
   metadata          Json?
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
-  organization      Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  team              AgentTeam            @relation(fields: [teamId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  organization      Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  team              AgentTeam             @relation(fields: [teamId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   browserProfiles   BrowserProfile[]
+  controlChannels   AgentControlChannel[]
   deployments       AgentDeployment[]
   runs              AgentRun[]
 
@@ -475,32 +489,33 @@ model AgentRuntime {
 }
 
 model AgentTeam {
-  id             String            @id(map: "PK_AgentTeam") @default(uuid()) @db.Uuid
-  organizationId String            @db.Uuid
-  name           String            @db.VarChar(255)
-  slug           String            @db.VarChar(255)
-  template       AgentTeamTemplate @default(GENERIC_OPERATIONS)
-  description    String?           @db.VarChar(2000)
-  desiredOutcome String?           @db.Text
-  promptPack     Json?
-  skillPack      Json?
-  cadenceCron    String?           @db.VarChar(255)
-  approvalPolicy Json?
-  status         AgentTeamStatus   @default(DRAFT)
-  lastRunAt      DateTime?
-  nextRunAt      DateTime?
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  agents         Agent[]
-  approvals      ApprovalRequest[]
-  artifacts      AgentArtifact[]
-  auditLogs      AgentAuditLog[]
+  id              String                @id(map: "PK_AgentTeam") @default(uuid()) @db.Uuid
+  organizationId  String                @db.Uuid
+  name            String                @db.VarChar(255)
+  slug            String                @db.VarChar(255)
+  template        AgentTeamTemplate     @default(GENERIC_OPERATIONS)
+  description     String?               @db.VarChar(2000)
+  desiredOutcome  String?               @db.Text
+  promptPack      Json?
+  skillPack       Json?
+  cadenceCron     String?               @db.VarChar(255)
+  approvalPolicy  Json?
+  status          AgentTeamStatus       @default(DRAFT)
+  lastRunAt       DateTime?
+  nextRunAt       DateTime?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  organization    Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  agents          Agent[]
+  approvals       ApprovalRequest[]
+  artifacts       AgentArtifact[]
+  auditLogs       AgentAuditLog[]
   browserProfiles BrowserProfile[]
-  deployments    AgentDeployment[]
-  memories       MemoryEntry[]
-  runs           AgentRun[]
-  runtimes       AgentRuntime[]
+  controlChannels AgentControlChannel[]
+  deployments     AgentDeployment[]
+  memories        MemoryEntry[]
+  runs            AgentRun[]
+  runtimes        AgentRuntime[]
 
   @@unique([organizationId, slug])
   @@index([organizationId], map: "IX_AgentTeam_organizationId")
@@ -746,25 +761,25 @@ model Notification {
 }
 
 model BrowserProfile {
-  id                   String                @id(map: "PK_BrowserProfile") @default(uuid()) @db.Uuid
-  organizationId       String                @db.Uuid
-  teamId               String?               @db.Uuid
-  runtimeId            String?               @db.Uuid
-  providerConnectionId String?               @db.Uuid
+  id                   String                 @id(map: "PK_BrowserProfile") @default(uuid()) @db.Uuid
+  organizationId       String                 @db.Uuid
+  teamId               String?                @db.Uuid
+  runtimeId            String?                @db.Uuid
+  providerConnectionId String?                @db.Uuid
   provider             BrowserProfileProvider @default(KERNEL)
-  name                 String                @db.VarChar(255)
-  externalProfileId    String?               @db.VarChar(255)
-  status               BrowserProfileStatus  @default(READY)
-  saveChanges          Boolean               @default(true)
-  managedAuth          Boolean               @default(false)
+  name                 String                 @db.VarChar(255)
+  externalProfileId    String?                @db.VarChar(255)
+  status               BrowserProfileStatus   @default(READY)
+  saveChanges          Boolean                @default(true)
+  managedAuth          Boolean                @default(false)
   lastSyncedAt         DateTime?
   metadata             Json?
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
-  organization         Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  team                 AgentTeam?            @relation(fields: [teamId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  runtime              AgentRuntime?         @relation(fields: [runtimeId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  providerConnection   ProviderConnection?   @relation(fields: [providerConnectionId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  organization         Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  team                 AgentTeam?             @relation(fields: [teamId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  runtime              AgentRuntime?          @relation(fields: [runtimeId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  providerConnection   ProviderConnection?    @relation(fields: [providerConnectionId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@index([organizationId], map: "IX_BrowserProfile_organizationId")
   @@index([teamId], map: "IX_BrowserProfile_teamId")
@@ -827,75 +842,107 @@ model OrderItem {
 }
 
 model Organization {
-  id                String         @id(map: "PK_Organization") @default(uuid()) @db.Uuid
-  slug              String         @unique @db.VarChar(255)
-  logo              String?        @db.VarChar(2048)
-  name              String         @db.VarChar(255)
-  address           String?        @db.VarChar(255)
-  phone             String?        @db.VarChar(32)
-  email             String?        @db.VarChar(255)
-  website           String?        @db.VarChar(2000)
-  linkedInProfile   String?        @db.VarChar(2000)
-  instagramProfile  String?        @db.VarChar(2000)
-  youTubeChannel    String?        @db.VarChar(2000)
-  xProfile          String?        @db.VarChar(2000)
-  tikTokProfile     String?        @db.VarChar(2000)
-  facebookPage      String?        @db.VarChar(2000)
-  billingCustomerId String?
-  billingEmail      String?        @db.VarChar(255)
-  billingLine1      String?        @db.VarChar(255)
-  billingLine2      String?        @db.VarChar(255)
-  billingCountry    String?        @db.VarChar(3)
-  billingPostalCode String?        @db.VarChar(16)
-  billingCity       String?        @db.VarChar(255)
-  billingState      String?        @db.VarChar(255)
-  agents            Agent[]
-  agentTeams        AgentTeam[]
-  agentRuntimes     AgentRuntime[]
-  agentDeployments  AgentDeployment[]
-  agentRuns         AgentRun[]
-  agentArtifacts    AgentArtifact[]
-  agentAuditLogs    AgentAuditLog[]
-  approvalRequests  ApprovalRequest[]
-  browserProfiles   BrowserProfile[]
-  memoryEntries     MemoryEntry[]
-  providerConnections ProviderConnection[]
-  apiKeys           ApiKey[]
-  businessHours     WorkHours[]
-  contacts          Contact[]
-  feedback          Feedback[]
-  invitations       Invitation[]
-  memberships       Membership[]
-  orders            Order[]
-  subscriptions     Subscription[]
-  webhooks          Webhook[]
+  id                   String                @id(map: "PK_Organization") @default(uuid()) @db.Uuid
+  slug                 String                @unique @db.VarChar(255)
+  logo                 String?               @db.VarChar(2048)
+  name                 String                @db.VarChar(255)
+  address              String?               @db.VarChar(255)
+  phone                String?               @db.VarChar(32)
+  email                String?               @db.VarChar(255)
+  website              String?               @db.VarChar(2000)
+  linkedInProfile      String?               @db.VarChar(2000)
+  instagramProfile     String?               @db.VarChar(2000)
+  youTubeChannel       String?               @db.VarChar(2000)
+  xProfile             String?               @db.VarChar(2000)
+  tikTokProfile        String?               @db.VarChar(2000)
+  facebookPage         String?               @db.VarChar(2000)
+  billingCustomerId    String?
+  billingEmail         String?               @db.VarChar(255)
+  billingLine1         String?               @db.VarChar(255)
+  billingLine2         String?               @db.VarChar(255)
+  billingCountry       String?               @db.VarChar(3)
+  billingPostalCode    String?               @db.VarChar(16)
+  billingCity          String?               @db.VarChar(255)
+  billingState         String?               @db.VarChar(255)
+  agents               Agent[]
+  agentTeams           AgentTeam[]
+  agentRuntimes        AgentRuntime[]
+  agentDeployments     AgentDeployment[]
+  agentRuns            AgentRun[]
+  agentArtifacts       AgentArtifact[]
+  agentAuditLogs       AgentAuditLog[]
+  approvalRequests     ApprovalRequest[]
+  browserProfiles      BrowserProfile[]
+  agentControlChannels AgentControlChannel[]
+  memoryEntries        MemoryEntry[]
+  providerConnections  ProviderConnection[]
+  apiKeys              ApiKey[]
+  businessHours        WorkHours[]
+  contacts             Contact[]
+  feedback             Feedback[]
+  invitations          Invitation[]
+  memberships          Membership[]
+  orders               Order[]
+  subscriptions        Subscription[]
+  webhooks             Webhook[]
 
   @@index([billingCustomerId], map: "IX_Organization_billingCustomerId")
 }
 
 model ProviderConnection {
-  id                   String                   @id(map: "PK_ProviderConnection") @default(uuid()) @db.Uuid
-  organizationId       String                   @db.Uuid
-  type                 ProviderConnectionType
-  name                 String                   @db.VarChar(255)
-  status               ProviderConnectionStatus @default(DISCONNECTED)
-  encryptedAccessToken String?                  @db.Text
-  encryptedRefreshToken String?                 @db.Text
-  encryptedSecret      String?                  @db.Text
-  externalAccountId    String?                  @db.VarChar(255)
-  externalWorkspaceId  String?                  @db.VarChar(255)
-  scopes               Json?
-  metadata             Json?
-  lastVerifiedAt       DateTime?
-  createdAt            DateTime                 @default(now())
-  updatedAt            DateTime                 @updatedAt
-  organization         Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  browserProfiles      BrowserProfile[]
-  deployments          AgentDeployment[]
+  id                    String                   @id(map: "PK_ProviderConnection") @default(uuid()) @db.Uuid
+  organizationId        String                   @db.Uuid
+  type                  ProviderConnectionType
+  name                  String                   @db.VarChar(255)
+  status                ProviderConnectionStatus @default(DISCONNECTED)
+  encryptedAccessToken  String?                  @db.Text
+  encryptedRefreshToken String?                  @db.Text
+  encryptedSecret       String?                  @db.Text
+  externalAccountId     String?                  @db.VarChar(255)
+  externalWorkspaceId   String?                  @db.VarChar(255)
+  scopes                Json?
+  metadata              Json?
+  lastVerifiedAt        DateTime?
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+  organization          Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  browserProfiles       BrowserProfile[]
+  controlChannels       AgentControlChannel[]
+  deployments           AgentDeployment[]
 
   @@unique([organizationId, type, name])
   @@index([organizationId], map: "IX_ProviderConnection_organizationId")
   @@index([type], map: "IX_ProviderConnection_type")
+}
+
+model AgentControlChannel {
+  id                   String                    @id(map: "PK_AgentControlChannel") @default(uuid()) @db.Uuid
+  organizationId       String                    @db.Uuid
+  teamId               String                    @db.Uuid
+  runtimeId            String?                   @db.Uuid
+  providerConnectionId String                    @db.Uuid
+  type                 AgentControlChannelType   @default(TELEGRAM)
+  status               AgentControlChannelStatus @default(ACTIVE)
+  name                 String                    @db.VarChar(255)
+  externalChannelId    String                    @db.VarChar(255)
+  externalThreadId     String?                   @db.VarChar(255)
+  externalUserId       String?                   @db.VarChar(255)
+  lastInboundAt        DateTime?
+  lastOutboundAt       DateTime?
+  metadata             Json?
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
+  organization         Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  team                 AgentTeam                 @relation(fields: [teamId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  runtime              AgentRuntime?             @relation(fields: [runtimeId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  providerConnection   ProviderConnection        @relation(fields: [providerConnectionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([providerConnectionId, externalChannelId, externalThreadId], map: "UX_AgentControlChannel_channelThread")
+  @@index([organizationId], map: "IX_AgentControlChannel_organizationId")
+  @@index([teamId], map: "IX_AgentControlChannel_teamId")
+  @@index([runtimeId], map: "IX_AgentControlChannel_runtimeId")
+  @@index([providerConnectionId], map: "IX_AgentControlChannel_providerConnectionId")
+  @@index([status], map: "IX_AgentControlChannel_status")
 }
 
 model OrganizationLogo {

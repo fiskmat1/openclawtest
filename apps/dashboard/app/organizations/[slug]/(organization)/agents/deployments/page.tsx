@@ -1,12 +1,16 @@
 import * as React from 'react';
-import Link from 'next/link';
 import { type Metadata } from 'next';
+import Link from 'next/link';
 
 import {
   agentDeploymentStatusLabels,
   agentRuntimeProviderLabels
 } from '@workspace/agents';
-import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert';
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle
+} from '@workspace/ui/components/alert';
 import { buttonVariants } from '@workspace/ui/components/button';
 import {
   Table,
@@ -17,8 +21,8 @@ import {
   TableRow
 } from '@workspace/ui/components/table';
 
-import { AgentsPageShell } from '~/components/organizations/slug/agents/agents-page-shell';
 import { AgentStatusBadge } from '~/components/organizations/slug/agents/agent-status-badge';
+import { AgentsPageShell } from '~/components/organizations/slug/agents/agents-page-shell';
 import { getAgentDeployments } from '~/data/agents/get-agent-deployments';
 import { createTitle } from '~/lib/formatters';
 
@@ -32,13 +36,15 @@ export default async function AgentDeploymentsPage(): Promise<React.JSX.Element>
   return (
     <AgentsPageShell
       title="Deployments"
-      info="Provisioned runtimes, manual control URLs, and lifecycle status."
+      info="Provisioned E2B runtimes, live-view control URLs, and lifecycle status."
     >
       <div className="space-y-6">
         <Alert variant="warning">
-          <AlertTitle>Lifecycle automation guardrail</AlertTitle>
+          <AlertTitle>Live runtime access</AlertTitle>
           <AlertDescription>
-            Runtime creation is automated, but control URLs are still surfaced so operators can manually inspect or recover a provider deployment when needed.
+            Runtime creation is automated. Control URLs point to the active E2B
+            live view so operators can inspect or intervene in the virtual
+            computer when needed.
           </AlertDescription>
         </Alert>
 
@@ -68,7 +74,9 @@ export default async function AgentDeploymentsPage(): Promise<React.JSX.Element>
                       label={agentDeploymentStatusLabels[deployment.status]}
                     />
                   </TableCell>
-                  <TableCell>{deployment.runtimeName ?? 'Pending runtime'}</TableCell>
+                  <TableCell>
+                    {deployment.runtimeName ?? 'Pending runtime'}
+                  </TableCell>
                   <TableCell>{deployment.region ?? 'n/a'}</TableCell>
                   <TableCell className="max-w-xs whitespace-normal text-sm text-muted-foreground">
                     {deployment.failureReason ?? 'No failure recorded'}
@@ -78,12 +86,17 @@ export default async function AgentDeploymentsPage(): Promise<React.JSX.Element>
                       <Link
                         href={deployment.controlUrl}
                         target="_blank"
-                        className={buttonVariants({ size: 'sm', variant: 'outline' })}
+                        className={buttonVariants({
+                          size: 'sm',
+                          variant: 'outline'
+                        })}
                       >
-                        Open
+                        Live view
                       </Link>
                     ) : (
-                      <span className="text-sm text-muted-foreground">Unavailable</span>
+                      <span className="text-sm text-muted-foreground">
+                        Unavailable
+                      </span>
                     )}
                   </TableCell>
                 </TableRow>
@@ -92,7 +105,8 @@ export default async function AgentDeploymentsPage(): Promise<React.JSX.Element>
           </Table>
         ) : (
           <p className="text-sm text-muted-foreground">
-            No deployments yet. Deploy a team from the Teams tab after configuring a Kilo connection.
+            No deployments yet. Teams auto-deploy after E2B and OpenClaw are
+            connected, or you can trigger a deploy manually from the Teams tab.
           </p>
         )}
       </div>

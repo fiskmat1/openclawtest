@@ -1,10 +1,10 @@
+import { setTimeout as sleep } from 'node:timers/promises';
 import type PgBoss from 'pg-boss';
 
 import {
   AgentJobName,
-  createKiloClawProviderClient,
-  createKernelBrowserProviderClient,
   createOpenClawGatewayClient,
+  createRuntimeProviderClient,
   createTikTokMarketingBlueprint,
   createTikTokPublisherClient,
   decryptSecret,
@@ -12,8 +12,11 @@ import {
   normalizeApprovalPolicy,
   parseAgentJobPayload,
   sendAgentJob,
+  type OpenClawGatewayClient,
+  type ProcessProviderWebhookJobPayload,
   type RuntimeProvisionInput
 } from '@workspace/agents';
+import { keys as agentKeys } from '@workspace/agents/keys';
 import {
   AgentArtifactType,
   AgentAuditEventType,
@@ -21,16 +24,15 @@ import {
   AgentRole,
   AgentRunStatus,
   AgentRunStepStatus,
-  AgentRunTrigger,
   AgentRuntimeProvider,
   AgentRuntimeStatus,
+  AgentRunTrigger,
   AgentStatus,
   AgentTeamStatus,
   AgentTeamTemplate,
   ApprovalRequestKind,
   ApprovalRequestStatus,
   ApprovalRiskLevel,
-  BrowserProfileStatus,
   MemoryEntryKind,
   Prisma,
   ProviderConnectionStatus,
@@ -40,6 +42,16 @@ import { prisma } from '@workspace/database/client';
 import { MonitoringProvider } from '@workspace/monitoring/provider';
 
 import { createAgentAuditLog } from './lib/audit';
+import {
+  markControlChannelInbound,
+  notifyControlChannel,
+  notifyControlChannelWithTranscript,
+  notifyTeamControlChannels
+} from './lib/control-channels';
+import {
+  buildAgentExecutionPrompt,
+  getLatestAssistantReply
+} from './lib/gateway';
 
 function toRecord(
   value: Prisma.JsonValue | null | undefined
@@ -94,6 +106,58 @@ async function getLatestDeployment(teamId: string) {
   });
 }
 
+function getRuntimeProviderConnectionType(
+  provider: AgentRuntimeProvider
+): ProviderConnectionType | undefined {
+  switch (provider) {
+    case AgentRuntimeProvider.E2B:
+      return ProviderConnectionType.E2B;
+    case AgentRuntimeProvider.KILOCLAW:
+      return ProviderConnectionType.KILO;
+    default:
+      return undefined;
+  }
+}
+
+async function createGatewayClientForRuntime(args: {
+  organizationId: string;
+  runtime: {
+    gatewayUrl: string | null;
+  };
+}) {
+  const openClawConnection = await getConnectedProviderConnection(
+    args.organizationId,
+    ProviderConnectionType.OPENCLAW
+  );
+  const metadata = toRecord(openClawConnection?.metadata);
+  const endpoint =
+    (metadata.rpcEndpoint as string | undefined) ??
+    args.runtime.gatewayUrl ??
+    agentKeys().AGENTS_OPENCLAW_RPC_ENDPOINT;
+  const authToken = openClawConnection?.encryptedAccessToken
+    ? await decryptSecret(openClawConnection.encryptedAccessToken)
+    : agentKeys().AGENTS_OPENCLAW_SHARED_PASSWORD;
+
+  if (!endpoint) {
+    return null;
+  }
+
+  return createOpenClawGatewayClient({
+    endpoint,
+    authToken
+  });
+}
+
+async function notifyTeam(args: {
+  teamId: string;
+  text: string;
+}): Promise<void> {
+  await notifyTeamControlChannels({
+    teamId: args.teamId,
+    text: args.text
+  });
+}
+
 async function handleDeployTeamJob(payload: unknown): Promise<void> {
   const parsed = parseAgentJobPayload(AgentJobName.DeployTeam, payload);
   const deployment = await prisma.agentDeployment.findUnique({
@@ -108,12 +172,18 @@ async function handleDeployTeamJob(payload: unknown): Promise<void> {
     return;
   }
 
+  const providerConnectionType = getRuntimeProviderConnectionType(
+    deployment.provider
+  );
   const providerConnection =
     deployment.providerConnection ??
-    (await getConnectedProviderConnection(
-      deployment.organizationId,
-      ProviderConnectionType.KILO
-    ));
+    (providerConnectionType
+      ? await getConnectedProviderConnection(
+          deployment.organizationId,
+          providerConnectionType
+        )
+      : null);
+  const providerMetadata = toRecord(providerConnection?.metadata);
 
   const runtimeInput: RuntimeProvisionInput = {
     organizationId: deployment.organizationId,
@@ -121,10 +191,7 @@ async function handleDeployTeamJob(payload: unknown): Promise<void> {
     teamSlug: deployment.team.slug,
     teamName: deployment.team.name,
     preferredRegion:
-      (providerConnection?.metadata &&
-        toRecord(providerConnection.metadata).preferredRegion) as
-        | string
-        | undefined,
+      (providerMetadata.preferredRegion as string | undefined) ?? undefined,
     providerConnection: providerConnection
       ? {
           id: providerConnection.id,
@@ -136,14 +203,29 @@ async function handleDeployTeamJob(payload: unknown): Promise<void> {
         }
       : undefined,
     metadata: {
-      requestBody:
-        providerConnection?.metadata && toRecord(providerConnection.metadata)
+      ...providerMetadata,
+      requestBody: providerMetadata
     }
   };
 
   try {
-    const provider = createKiloClawProviderClient();
-    const syncResult = await provider.createRuntime(runtimeInput);
+    const syncResult =
+      deployment.provider === AgentRuntimeProvider.SELF_HOSTED
+        ? {
+            provider: AgentRuntimeProvider.SELF_HOSTED,
+            deploymentStatus: AgentDeploymentStatus.READY,
+            runtimeStatus: AgentRuntimeStatus.READY,
+            controlUrl: providerMetadata.controlUrl as string | undefined,
+            gatewayUrl:
+              (providerMetadata.rpcEndpoint as string | undefined) ??
+              agentKeys().AGENTS_OPENCLAW_RPC_ENDPOINT,
+            region: providerMetadata.preferredRegion as string | undefined,
+            machineClass: providerMetadata.machineClass as string | undefined,
+            metadata: providerMetadata
+          }
+        : await createRuntimeProviderClient(deployment.provider).createRuntime(
+            runtimeInput
+          );
 
     const runtime = await prisma.agentRuntime.upsert({
       where: {
@@ -240,7 +322,21 @@ async function handleDeployTeamJob(payload: unknown): Promise<void> {
         teamId: deployment.teamId,
         runtimeId: runtime.id
       });
+    } else {
+      await maybeSyncGatewaySessions(
+        deployment.teamId,
+        deployment.organizationId,
+        runtime.id
+      );
     }
+
+    await notifyTeam({
+      teamId: deployment.teamId,
+      text:
+        syncResult.deploymentStatus === AgentDeploymentStatus.READY
+          ? `Deployment ready for ${deployment.team.name}. Live view: ${syncResult.controlUrl ?? 'Unavailable'}`
+          : `Deployment ${syncResult.deploymentStatus.toLowerCase()} for ${deployment.team.name}.`
+    });
   } catch (error) {
     MonitoringProvider.captureError(error);
 
@@ -271,6 +367,11 @@ async function handleDeployTeamJob(payload: unknown): Promise<void> {
         error: error instanceof Error ? error.message : 'Unknown error'
       }
     });
+
+    await notifyTeam({
+      teamId: deployment.teamId,
+      text: `Deployment failed for ${deployment.team.name}: ${error instanceof Error ? error.message : 'Unknown error'}`
+    });
   }
 }
 
@@ -299,12 +400,19 @@ async function handleReconcileRuntimeJob(payload: unknown): Promise<void> {
     return;
   }
 
-  const connection = await getConnectedProviderConnection(
-    runtime.organizationId,
-    ProviderConnectionType.KILO
+  const providerConnectionType = getRuntimeProviderConnectionType(
+    runtime.provider
   );
+  const connection = providerConnectionType
+    ? await getConnectedProviderConnection(
+        runtime.organizationId,
+        providerConnectionType
+      )
+    : null;
 
-  const syncResult = await createKiloClawProviderClient().syncRuntime({
+  const syncResult = await createRuntimeProviderClient(
+    runtime.provider
+  ).syncRuntime({
     organizationId: runtime.organizationId,
     teamId: runtime.teamId,
     teamSlug: runtime.team.slug,
@@ -325,7 +433,8 @@ async function handleReconcileRuntimeJob(payload: unknown): Promise<void> {
   await prisma.agentRuntime.update({
     where: { id: runtime.id },
     data: {
-      externalRuntimeId: syncResult.externalRuntimeId ?? runtime.externalRuntimeId,
+      externalRuntimeId:
+        syncResult.externalRuntimeId ?? runtime.externalRuntimeId,
       gatewayUrl: syncResult.gatewayUrl ?? runtime.gatewayUrl,
       controlUrl: syncResult.controlUrl ?? runtime.controlUrl,
       status: syncResult.runtimeStatus,
@@ -354,6 +463,14 @@ async function handleReconcileRuntimeJob(payload: unknown): Promise<void> {
     }
   });
 
+  if (syncResult.runtimeStatus === AgentRuntimeStatus.READY) {
+    await maybeSyncGatewaySessions(
+      runtime.teamId,
+      runtime.organizationId,
+      runtime.id
+    );
+  }
+
   await createAgentAuditLog({
     organizationId: runtime.organizationId,
     teamId: runtime.teamId,
@@ -365,36 +482,38 @@ async function handleReconcileRuntimeJob(payload: unknown): Promise<void> {
       status: syncResult.runtimeStatus
     }
   });
+
+  await notifyTeam({
+    teamId: runtime.teamId,
+    text: `Runtime reconciled for ${runtime.team.name} with status ${syncResult.runtimeStatus.toLowerCase()}.`
+  });
 }
 
-async function maybeSyncGatewaySessions(teamId: string, organizationId: string) {
+async function maybeSyncGatewaySessions(
+  teamId: string,
+  organizationId: string,
+  runtimeId?: string
+) {
   const runtime = await prisma.agentRuntime.findFirst({
     where: {
+      ...(runtimeId ? { id: runtimeId } : { teamId }),
       teamId,
       status: AgentRuntimeStatus.READY
     }
   });
 
-  if (!runtime?.gatewayUrl) {
+  if (!runtime) {
     return;
   }
 
-  const openClawConnection = await getConnectedProviderConnection(
+  const gateway = await createGatewayClientForRuntime({
     organizationId,
-    ProviderConnectionType.OPENCLAW
-  );
-  const metadata = toRecord(openClawConnection?.metadata);
-  const endpoint =
-    (metadata.rpcEndpoint as string | undefined) ?? runtime.gatewayUrl;
-  const authToken =
-    openClawConnection?.encryptedAccessToken
-      ? await decryptSecret(openClawConnection.encryptedAccessToken)
-      : undefined;
-
-  const gateway = createOpenClawGatewayClient({
-    endpoint,
-    authToken
+    runtime
   });
+
+  if (!gateway) {
+    return;
+  }
 
   const sessions = await gateway.listSessions();
   const agents = await prisma.agent.findMany({
@@ -426,6 +545,197 @@ async function maybeSyncGatewaySessions(teamId: string, organizationId: string) 
       }
     });
   }
+}
+
+type GatewayAgentExecution = {
+  agentId: string;
+  agentName: string;
+  sessionKey: string;
+  transcript: Awaited<ReturnType<OpenClawGatewayClient['getHistory']>>;
+  latestAssistantReply?: string;
+};
+
+async function executeGatewayAgentSessions(args: {
+  organizationId: string;
+  teamId: string;
+  teamName: string;
+  desiredOutcome?: string | null;
+  runId: string;
+  reason: string;
+  runObjective?: string | null;
+}): Promise<GatewayAgentExecution[]> {
+  const runtime = await prisma.agentRuntime.findFirst({
+    where: {
+      teamId: args.teamId,
+      status: AgentRuntimeStatus.READY
+    },
+    orderBy: {
+      createdAt: 'desc'
+    }
+  });
+
+  if (!runtime) {
+    return [];
+  }
+
+  const gateway = await createGatewayClientForRuntime({
+    organizationId: args.organizationId,
+    runtime
+  });
+
+  if (!gateway) {
+    return [];
+  }
+
+  const agents = await prisma.agent.findMany({
+    where: {
+      teamId: args.teamId,
+      providerSessionId: {
+        not: null
+      }
+    },
+    orderBy: {
+      createdAt: 'asc'
+    }
+  });
+
+  const outputs: GatewayAgentExecution[] = [];
+
+  for (const agent of agents) {
+    if (!agent.providerSessionId) {
+      continue;
+    }
+
+    const step = await prisma.agentRunStep.create({
+      data: {
+        runId: args.runId,
+        agentId: agent.id,
+        status: AgentRunStepStatus.RUNNING,
+        kind: 'gateway-session',
+        title: `Coordinate ${agent.name}`,
+        detail: `Executing OpenClaw session ${agent.providerSessionId}.`,
+        startedAt: new Date(),
+        metadata: {
+          sessionKey: agent.providerSessionId
+        } as Prisma.InputJsonValue
+      },
+      select: {
+        id: true
+      }
+    });
+
+    try {
+      await gateway.sendMessage({
+        sessionKey: agent.providerSessionId,
+        message: buildAgentExecutionPrompt({
+          teamName: args.teamName,
+          desiredOutcome: args.desiredOutcome,
+          reason: args.reason,
+          runObjective: args.runObjective,
+          agentName: agent.name,
+          agentRole: agent.role,
+          agentGoal: agent.goal,
+          systemPrompt: agent.systemPrompt
+        })
+      });
+
+      await sleep(1_000);
+
+      const transcript = await gateway.getHistory(agent.providerSessionId);
+      const latestAssistantReply = getLatestAssistantReply(transcript);
+
+      await prisma.agentRunStep.update({
+        where: {
+          id: step.id
+        },
+        data: {
+          status: AgentRunStepStatus.SUCCEEDED,
+          completedAt: new Date(),
+          output: {
+            sessionKey: agent.providerSessionId,
+            transcriptLength: transcript.length,
+            latestAssistantReply
+          } as Prisma.InputJsonValue
+        }
+      });
+
+      outputs.push({
+        agentId: agent.id,
+        agentName: agent.name,
+        sessionKey: agent.providerSessionId,
+        transcript,
+        latestAssistantReply
+      });
+    } catch (error) {
+      MonitoringProvider.captureError(error);
+
+      await prisma.agentRunStep.update({
+        where: {
+          id: step.id
+        },
+        data: {
+          status: AgentRunStepStatus.FAILED,
+          completedAt: new Date(),
+          error: {
+            message: error instanceof Error ? error.message : 'Unknown error'
+          } as Prisma.InputJsonValue
+        }
+      });
+    }
+  }
+
+  return outputs;
+}
+
+async function createGatewayArtifacts(args: {
+  organizationId: string;
+  teamId: string;
+  runId: string;
+  outputs: GatewayAgentExecution[];
+}): Promise<void> {
+  if (args.outputs.length === 0) {
+    return;
+  }
+
+  const textContent = args.outputs
+    .map((output) =>
+      [
+        `## ${output.agentName}`,
+        output.latestAssistantReply ?? 'No assistant reply yet.'
+      ].join('\n\n')
+    )
+    .join('\n\n');
+
+  await prisma.agentArtifact.create({
+    data: {
+      organizationId: args.organizationId,
+      teamId: args.teamId,
+      runId: args.runId,
+      type: AgentArtifactType.REPORT,
+      title: 'OpenClaw coordination summary',
+      textContent,
+      metadata: {
+        generatedBy: 'openclaw',
+        agentCount: args.outputs.length
+      } as Prisma.InputJsonValue
+    }
+  });
+
+  await prisma.memoryEntry.createMany({
+    data: args.outputs
+      .filter((output) => Boolean(output.latestAssistantReply))
+      .map((output) => ({
+        organizationId: args.organizationId,
+        teamId: args.teamId,
+        runId: args.runId,
+        agentId: output.agentId,
+        kind: MemoryEntryKind.OBSERVATION,
+        title: `${output.agentName} session summary`,
+        content: output.latestAssistantReply ?? '',
+        score: 0.7,
+        source: 'openclaw'
+      }))
+  });
 }
 
 async function createTikTokArtifacts(runId: string, teamId: string) {
@@ -563,6 +873,12 @@ async function handleSuperviseTeamJob(payload: unknown): Promise<void> {
     return;
   }
 
+  const trigger =
+    parsed.reason === 'scheduled'
+      ? AgentRunTrigger.SCHEDULE
+      : parsed.reason.startsWith('telegram:')
+        ? AgentRunTrigger.WEBHOOK
+        : AgentRunTrigger.MANUAL;
   const run =
     (parsed.runId
       ? await prisma.agentRun.findUnique({
@@ -575,7 +891,7 @@ async function handleSuperviseTeamJob(payload: unknown): Promise<void> {
         teamId: team.id,
         runtimeId: team.runtimes[0]?.id ?? null,
         status: AgentRunStatus.RUNNING,
-        trigger: AgentRunTrigger.MANUAL,
+        trigger,
         title: `${team.name} supervision run`,
         objective:
           team.desiredOutcome ??
@@ -587,7 +903,7 @@ async function handleSuperviseTeamJob(payload: unknown): Promise<void> {
       }
     }));
 
-  await prisma.agentRunStep.create({
+  const supervisionStep = await prisma.agentRunStep.create({
     data: {
       runId: run.id,
       status: AgentRunStepStatus.RUNNING,
@@ -595,6 +911,9 @@ async function handleSuperviseTeamJob(payload: unknown): Promise<void> {
       title: 'Coordinate team execution',
       detail: `Supervisor run started because: ${parsed.reason}.`,
       startedAt: new Date()
+    },
+    select: {
+      id: true
     }
   });
 
@@ -604,20 +923,40 @@ async function handleSuperviseTeamJob(payload: unknown): Promise<void> {
     MonitoringProvider.captureError(error);
   }
 
+  const gatewayOutputs = await executeGatewayAgentSessions({
+    organizationId: team.organizationId,
+    teamId: team.id,
+    teamName: team.name,
+    desiredOutcome: team.desiredOutcome,
+    runId: run.id,
+    reason: parsed.reason,
+    runObjective: run.objective
+  });
+
+  await createGatewayArtifacts({
+    organizationId: team.organizationId,
+    teamId: team.id,
+    runId: run.id,
+    outputs: gatewayOutputs
+  });
+
+  const isInteractiveControlRun = parsed.reason.startsWith('telegram:');
   const artifacts =
-    team.template === AgentTeamTemplate.TIKTOK_MARKETING
+    team.template === AgentTeamTemplate.TIKTOK_MARKETING &&
+    !isInteractiveControlRun
       ? await createTikTokArtifacts(run.id, team.id)
       : [];
 
   const approvalPolicy = normalizeApprovalPolicy(team.approvalPolicy);
   let nextRunStatus: AgentRunStatus = AgentRunStatus.SUCCEEDED;
+  const approvalWaitingUntil = new Date(Date.now() + 1000 * 60 * 60 * 24);
 
   if (approvalPolicy.requireApprovalForPublish && artifacts.length > 0) {
     const videoArtifact = artifacts.find(
       (artifact) => artifact.type === AgentArtifactType.VIDEO
     );
 
-    await prisma.approvalRequest.create({
+    const approvalRequest = await prisma.approvalRequest.create({
       data: {
         organizationId: team.organizationId,
         teamId: team.id,
@@ -639,22 +978,54 @@ async function handleSuperviseTeamJob(payload: unknown): Promise<void> {
       }
     });
 
+    await sendAgentJob(
+      AgentJobName.ResolveApprovalTimeout,
+      {
+        organizationId: team.organizationId,
+        approvalRequestId: approvalRequest.id
+      },
+      {
+        startAfter: approvalWaitingUntil
+      }
+    );
+
     nextRunStatus = AgentRunStatus.WAITING_APPROVAL;
   }
+
+  await prisma.agentRunStep.update({
+    where: {
+      id: supervisionStep.id
+    },
+    data: {
+      status: AgentRunStepStatus.SUCCEEDED,
+      completedAt: new Date(),
+      detail:
+        nextRunStatus === AgentRunStatus.WAITING_APPROVAL
+          ? 'OpenClaw session outputs recorded and waiting for approval.'
+          : 'OpenClaw session outputs recorded successfully.',
+      output: {
+        sessionCount: gatewayOutputs.length,
+        artifactCount: artifacts.length,
+        waitingForApproval: nextRunStatus === AgentRunStatus.WAITING_APPROVAL
+      } as Prisma.InputJsonValue
+    }
+  });
 
   await prisma.agentRun.update({
     where: { id: run.id },
     data: {
       summary:
         nextRunStatus === AgentRunStatus.WAITING_APPROVAL
-          ? 'Artifacts generated and queued for approval.'
-          : 'Run completed successfully.',
+          ? 'Artifacts generated from OpenClaw activity and queued for approval.'
+          : gatewayOutputs.length > 0
+            ? 'OpenClaw sessions completed and the run finished successfully.'
+            : 'Run completed successfully.',
       status: nextRunStatus,
       completedAt:
         nextRunStatus === AgentRunStatus.SUCCEEDED ? new Date() : null,
       waitingUntil:
         nextRunStatus === AgentRunStatus.WAITING_APPROVAL
-          ? new Date(Date.now() + 1000 * 60 * 60 * 24)
+          ? approvalWaitingUntil
           : null
     }
   });
@@ -663,7 +1034,9 @@ async function handleSuperviseTeamJob(payload: unknown): Promise<void> {
     where: { id: team.id },
     data: {
       lastRunAt: new Date(),
-      nextRunAt: team.cadenceCron ? new Date(Date.now() + 1000 * 60 * 60 * 6) : null,
+      nextRunAt: team.cadenceCron
+        ? new Date(Date.now() + 1000 * 60 * 60 * 6)
+        : null,
       status: AgentTeamStatus.ACTIVE
     }
   });
@@ -676,8 +1049,17 @@ async function handleSuperviseTeamJob(payload: unknown): Promise<void> {
     summary: `Run transitioned to ${nextRunStatus.toLowerCase()}.`,
     metadata: {
       trigger: parsed.reason,
-      artifactCount: artifacts.length
+      artifactCount: artifacts.length,
+      sessionCount: gatewayOutputs.length
     }
+  });
+
+  await notifyTeam({
+    teamId: team.id,
+    text:
+      nextRunStatus === AgentRunStatus.WAITING_APPROVAL
+        ? `Run completed for ${team.name} and is waiting for approval.`
+        : `Run completed for ${team.name}. Sessions executed: ${gatewayOutputs.length}.`
   });
 }
 
@@ -737,6 +1119,11 @@ async function handlePublishArtifactJob(payload: unknown): Promise<void> {
         } as Prisma.InputJsonValue
       }
     });
+
+    await notifyTeam({
+      teamId: artifact.team.id,
+      text: 'Publishing is blocked until a TikTok account is connected.'
+    });
     return;
   }
 
@@ -750,11 +1137,18 @@ async function handlePublishArtifactJob(payload: unknown): Promise<void> {
       }
     });
 
+    await notifyTeam({
+      teamId: artifact.team.id,
+      text: 'Publishing failed because the video artifact is missing a URL.'
+    });
+
     return;
   }
 
   const publisher = createTikTokPublisherClient();
-  const accessToken = await decryptSecret(tiktokConnection.encryptedAccessToken);
+  const accessToken = await decryptSecret(
+    tiktokConnection.encryptedAccessToken
+  );
   const publishResult = await publisher.publishVideo({
     accessToken,
     title: artifact.title,
@@ -801,9 +1195,235 @@ async function handlePublishArtifactJob(payload: unknown): Promise<void> {
       publishId: publishResult.publishId
     }
   });
+
+  await notifyTeam({
+    teamId: artifact.team.id,
+    text: `Publishing initialized for ${artifact.title}.`
+  });
 }
 
-async function handleProcessProviderWebhookJob(payload: unknown): Promise<void> {
+async function handleTelegramProviderWebhook(
+  parsed: ProcessProviderWebhookJobPayload
+): Promise<void> {
+  if (!parsed.organizationId || !parsed.teamId || !parsed.channelId) {
+    return;
+  }
+
+  const incomingText = parsed.payload.text;
+
+  if (typeof incomingText !== 'string' || incomingText.trim().length === 0) {
+    return;
+  }
+
+  await markControlChannelInbound(parsed.channelId);
+
+  const team = await prisma.agentTeam.findUnique({
+    where: {
+      id: parsed.teamId
+    },
+    include: {
+      runtimes: {
+        where: {
+          status: AgentRuntimeStatus.READY
+        },
+        orderBy: {
+          createdAt: 'desc'
+        },
+        take: 1
+      }
+    }
+  });
+
+  if (!team) {
+    return;
+  }
+
+  const runtime =
+    (parsed.runtimeId
+      ? await prisma.agentRuntime.findUnique({
+          where: {
+            id: parsed.runtimeId
+          }
+        })
+      : null) ?? team.runtimes[0];
+
+  if (!runtime) {
+    await notifyControlChannel({
+      channelId: parsed.channelId,
+      text: `The team ${team.name} does not have a ready runtime yet.`
+    });
+    return;
+  }
+
+  await maybeSyncGatewaySessions(team.id, team.organizationId, runtime.id);
+
+  const agents = await prisma.agent.findMany({
+    where: {
+      teamId: team.id,
+      providerSessionId: {
+        not: null
+      }
+    },
+    orderBy: {
+      createdAt: 'asc'
+    }
+  });
+
+  const supervisor =
+    agents.find(
+      (agent) => agent.role === AgentRole.SUPERVISOR && agent.providerSessionId
+    ) ?? agents.find((agent) => agent.providerSessionId);
+
+  if (!supervisor?.providerSessionId) {
+    await notifyControlChannel({
+      channelId: parsed.channelId,
+      text: `The team ${team.name} is deployed, but no active OpenClaw session is available yet.`
+    });
+    return;
+  }
+
+  const gateway = await createGatewayClientForRuntime({
+    organizationId: team.organizationId,
+    runtime
+  });
+
+  if (!gateway) {
+    await notifyControlChannel({
+      channelId: parsed.channelId,
+      text: 'OpenClaw is not reachable for this team right now.'
+    });
+    return;
+  }
+
+  const run = await prisma.agentRun.create({
+    data: {
+      organizationId: team.organizationId,
+      teamId: team.id,
+      runtimeId: runtime.id,
+      status: AgentRunStatus.RUNNING,
+      trigger: AgentRunTrigger.WEBHOOK,
+      title: 'Telegram control message',
+      objective: incomingText,
+      startedAt: new Date(),
+      metadata: parsed.payload as Prisma.InputJsonValue
+    },
+    select: {
+      id: true
+    }
+  });
+
+  const step = await prisma.agentRunStep.create({
+    data: {
+      runId: run.id,
+      agentId: supervisor.id,
+      status: AgentRunStepStatus.RUNNING,
+      kind: 'telegram-control',
+      title: `Reply to Telegram from ${supervisor.name}`,
+      detail: `Processing inbound Telegram control message for ${team.name}.`,
+      startedAt: new Date(),
+      metadata: {
+        channelId: parsed.channelId,
+        sessionKey: supervisor.providerSessionId
+      } as Prisma.InputJsonValue
+    },
+    select: {
+      id: true
+    }
+  });
+
+  try {
+    await gateway.sendMessage({
+      sessionKey: parsed.sessionKey ?? supervisor.providerSessionId,
+      message: `Telegram operator request:\n${incomingText.trim()}`
+    });
+
+    await sleep(1_000);
+
+    const history = await gateway.getHistory(
+      parsed.sessionKey ?? supervisor.providerSessionId
+    );
+    const latestAssistantReply =
+      getLatestAssistantReply(history) ?? 'Message delivered to the team.';
+
+    await notifyControlChannelWithTranscript({
+      channelId: parsed.channelId,
+      entries: history
+    });
+
+    await prisma.agentRunStep.update({
+      where: {
+        id: step.id
+      },
+      data: {
+        status: AgentRunStepStatus.SUCCEEDED,
+        completedAt: new Date(),
+        output: {
+          latestAssistantReply,
+          transcriptLength: history.length
+        } as Prisma.InputJsonValue
+      }
+    });
+
+    await prisma.agentRun.update({
+      where: {
+        id: run.id
+      },
+      data: {
+        status: AgentRunStatus.SUCCEEDED,
+        summary: latestAssistantReply,
+        completedAt: new Date()
+      }
+    });
+
+    await createAgentAuditLog({
+      organizationId: team.organizationId,
+      teamId: team.id,
+      runId: run.id,
+      actorAgentId: supervisor.id,
+      eventType: AgentAuditEventType.RUN_STATE_TRANSITION,
+      summary: `Processed Telegram control message for ${team.name}.`,
+      metadata: {
+        channelId: parsed.channelId,
+        sessionKey: parsed.sessionKey ?? supervisor.providerSessionId
+      }
+    });
+  } catch (error) {
+    MonitoringProvider.captureError(error);
+
+    await prisma.agentRunStep.update({
+      where: {
+        id: step.id
+      },
+      data: {
+        status: AgentRunStepStatus.FAILED,
+        completedAt: new Date(),
+        error: {
+          message: error instanceof Error ? error.message : 'Unknown error'
+        } as Prisma.InputJsonValue
+      }
+    });
+
+    await prisma.agentRun.update({
+      where: {
+        id: run.id
+      },
+      data: {
+        status: AgentRunStatus.FAILED,
+        summary: error instanceof Error ? error.message : 'Unknown error',
+        failedAt: new Date()
+      }
+    });
+
+    await notifyControlChannel({
+      channelId: parsed.channelId,
+      text: `The Telegram request could not be processed: ${error instanceof Error ? error.message : 'Unknown error'}.`
+    });
+  }
+}
+
+async function handleProcessProviderWebhookJob(
+  payload: unknown
+): Promise<void> {
   const parsed = parseAgentJobPayload(
     AgentJobName.ProcessProviderWebhook,
     payload
@@ -816,16 +1436,60 @@ async function handleProcessProviderWebhookJob(payload: unknown): Promise<void> 
     }
   });
 
+  if (parsed.provider === 'telegram') {
+    await handleTelegramProviderWebhook(parsed);
+    return;
+  }
+
   if (!parsed.organizationId) {
     return;
   }
 
-  const team = await prisma.agentTeam.findFirst({
-    where: { organizationId: parsed.organizationId },
-    orderBy: {
-      updatedAt: 'desc'
-    }
-  });
+  const runtimeFromDeployment = parsed.deploymentId
+    ? (
+        await prisma.agentDeployment.findUnique({
+          where: {
+            id: parsed.deploymentId
+          },
+          select: {
+            runtime: true
+          }
+        })
+      )?.runtime
+    : null;
+
+  const runtime =
+    (parsed.runtimeId
+      ? await prisma.agentRuntime.findUnique({
+          where: {
+            id: parsed.runtimeId
+          }
+        })
+      : null) ?? runtimeFromDeployment;
+
+  const team =
+    (parsed.teamId
+      ? await prisma.agentTeam.findUnique({
+          where: {
+            id: parsed.teamId
+          }
+        })
+      : null) ??
+    (runtime
+      ? await prisma.agentTeam.findUnique({
+          where: {
+            id: runtime.teamId
+          }
+        })
+      : null) ??
+    (await prisma.agentTeam.findFirst({
+      where: {
+        organizationId: parsed.organizationId
+      },
+      orderBy: {
+        updatedAt: 'desc'
+      }
+    }));
 
   if (!team) {
     return;
@@ -839,26 +1503,30 @@ async function handleProcessProviderWebhookJob(payload: unknown): Promise<void> 
     metadata: parsed.payload
   });
 
-  const runtime = await prisma.agentRuntime.findFirst({
-    where: {
-      organizationId: parsed.organizationId,
-      teamId: team.id
-    },
-    orderBy: {
-      createdAt: 'desc'
-    }
-  });
+  const runtimeToReconcile =
+    runtime ??
+    (await prisma.agentRuntime.findFirst({
+      where: {
+        organizationId: parsed.organizationId,
+        teamId: team.id
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    }));
 
-  if (runtime) {
+  if (runtimeToReconcile) {
     await sendAgentJob(AgentJobName.ReconcileRuntime, {
-      organizationId: runtime.organizationId,
-      teamId: runtime.teamId,
-      runtimeId: runtime.id
+      organizationId: runtimeToReconcile.organizationId,
+      teamId: runtimeToReconcile.teamId,
+      runtimeId: runtimeToReconcile.id
     });
   }
 }
 
-async function handleResolveApprovalTimeoutJob(payload: unknown): Promise<void> {
+async function handleResolveApprovalTimeoutJob(
+  payload: unknown
+): Promise<void> {
   const parsed = parseAgentJobPayload(
     AgentJobName.ResolveApprovalTimeout,
     payload
@@ -899,6 +1567,11 @@ async function handleResolveApprovalTimeoutJob(payload: unknown): Promise<void> 
     metadata: {
       approvalRequestId: request.id
     }
+  });
+
+  await notifyTeam({
+    teamId: request.teamId,
+    text: `Approval expired: ${request.title}.`
   });
 }
 

@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-kms": "^3.1009.0",
+    "@e2b/desktop": "^2.2.2",
     "@t3-oss/env-nextjs": "0.13.8",
     "@workspace/auth": "workspace:*",
     "@workspace/database": "workspace:*",

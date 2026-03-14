@@ -41,14 +41,14 @@ import {
   type CreateProviderConnectionSchema
 } from '~/schemas/agents/create-provider-connection-schema';
 
-export const CreateProviderConnectionModal = NiceModal.create<NiceModalHocProps>(
-  () => {
+export const CreateProviderConnectionModal =
+  NiceModal.create<NiceModalHocProps>(() => {
     const modal = useEnhancedModal();
     const methods = useZodForm({
       schema: createProviderConnectionSchema,
       mode: 'onSubmit',
       defaultValues: {
-        type: ProviderConnectionType.KILO,
+        type: ProviderConnectionType.E2B,
         name: '',
         accessToken: '',
         refreshToken: '',
@@ -94,7 +94,9 @@ export const CreateProviderConnectionModal = NiceModal.create<NiceModalHocProps>
             <DialogHeader>
               <DialogTitle>Add integration</DialogTitle>
               <DialogDescription>
-                Save provider credentials securely so deployments, browser profiles, and publishing can be automated.
+                Save provider credentials securely so E2B deployments, OpenClaw
+                sessions, Telegram control channels, and publishing can be
+                automated.
               </DialogDescription>
             </DialogHeader>
 
@@ -258,7 +260,7 @@ export const CreateProviderConnectionModal = NiceModal.create<NiceModalHocProps>
                     <FormControl>
                       <Textarea
                         disabled={methods.formState.isSubmitting}
-                        placeholder='{"preferredRegion":"eu-west","rpcEndpoint":"https://..."}'
+                        placeholder='{"preferredRegion":"eu-central","template":"desktop","rpcEndpoint":"https://openclaw.example.com/rpc","webhookBaseUrl":"https://dashboard.example.com"}'
                         {...field}
                       />
                     </FormControl>
@@ -289,5 +291,4 @@ export const CreateProviderConnectionModal = NiceModal.create<NiceModalHocProps>
         </Dialog>
       </FormProvider>
     );
-  }
-);
+  });

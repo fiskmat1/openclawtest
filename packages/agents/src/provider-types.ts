@@ -1,5 +1,4 @@
 import type {
-  AgentArtifactType,
   AgentDeploymentStatus,
   AgentRunStatus,
   AgentRuntimeProvider,
@@ -129,9 +128,11 @@ export type ApprovalRequestPayload = {
   payload: Record<string, unknown>;
 };
 
-export interface KiloClawProviderClient {
+export interface RuntimeProviderClient {
   createRuntime(input: RuntimeProvisionInput): Promise<RuntimeSyncResult>;
-  syncRuntime(input: RuntimeProvisionInput & { externalRuntimeId?: string }): Promise<RuntimeSyncResult>;
+  syncRuntime(
+    input: RuntimeProvisionInput & { externalRuntimeId?: string }
+  ): Promise<RuntimeSyncResult>;
 }
 
 export interface OpenClawGatewayClient {
@@ -152,4 +153,26 @@ export interface SocialPublisherClient {
     publishId: string,
     accessToken: string
   ): Promise<PublishVideoStatus>;
+}
+
+export type TelegramWebhookInput = {
+  accessToken: string;
+  webhookUrl: string;
+  secretToken: string;
+};
+
+export type TelegramSendMessageInput = {
+  accessToken: string;
+  chatId: string;
+  text: string;
+  threadId?: string;
+  disableNotification?: boolean;
+};
+
+export interface TelegramBotClient {
+  setWebhook(input: TelegramWebhookInput): Promise<{ ok: true }>;
+  sendMessage(input: TelegramSendMessageInput): Promise<{
+    ok: true;
+    messageId?: string;
+  }>;
 }

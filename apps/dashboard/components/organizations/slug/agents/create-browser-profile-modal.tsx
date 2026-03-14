@@ -95,7 +95,8 @@ export const CreateBrowserProfileModal =
               <DialogHeader>
                 <DialogTitle>Create browser profile</DialogTitle>
                 <DialogDescription>
-                  Provision a persistent browser profile for last-mile automations and authenticated workflows.
+                  Provision a legacy persistent browser profile for last-mile
+                  automations and authenticated workflows.
                 </DialogDescription>
               </DialogHeader>
 
@@ -127,7 +128,7 @@ export const CreateBrowserProfileModal =
                   name="providerConnectionId"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel required>Kernel integration</FormLabel>
+                      <FormLabel required>Legacy Kernel integration</FormLabel>
                       <Select
                         value={field.value}
                         onValueChange={field.onChange}
@@ -135,7 +136,7 @@ export const CreateBrowserProfileModal =
                       >
                         <FormControl>
                           <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select a Kernel connection" />
+                            <SelectValue placeholder="Select a legacy Kernel connection" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
@@ -162,7 +163,9 @@ export const CreateBrowserProfileModal =
                       <FormLabel>Team</FormLabel>
                       <Select
                         value={field.value}
-                        onValueChange={(value) => field.onChange(value || undefined)}
+                        onValueChange={(value) =>
+                          field.onChange(value || undefined)
+                        }
                         disabled={methods.formState.isSubmitting}
                       >
                         <FormControl>
@@ -209,7 +212,9 @@ export const CreateBrowserProfileModal =
                     name="saveChanges"
                     render={({ field }) => (
                       <FormItem className="flex items-center justify-between rounded-md border p-3">
-                        <FormLabel className="mb-0">Persist session state</FormLabel>
+                        <FormLabel className="mb-0">
+                          Persist session state
+                        </FormLabel>
                         <FormControl>
                           <Switch
                             checked={field.value}

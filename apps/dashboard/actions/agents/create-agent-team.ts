@@ -13,18 +13,16 @@ import {
 } from '@workspace/database';
 import { prisma } from '@workspace/database/client';
 
-import { authOrganizationActionClient } from '~/actions/safe-action';
 import {
   assertCanManageAgents,
+  maybeQueueAutoDeployForTeam,
   syncTeamCadenceSchedule,
   updateAgentCacheTags
 } from '~/actions/agents/_helpers';
+import { authOrganizationActionClient } from '~/actions/safe-action';
 import { createAgentTeamSchema } from '~/schemas/agents/create-agent-team-schema';
 
-function getBlueprint(
-  template: AgentTeamTemplate,
-  organizationName: string
-) {
+function getBlueprint(template: AgentTeamTemplate, organizationName: string) {
   return template === AgentTeamTemplate.TIKTOK_MARKETING
     ? createTikTokMarketingBlueprint(organizationName)
     : createGenericOperationsBlueprint(organizationName);
@@ -63,7 +61,10 @@ export const createAgentTeam = authOrganizationActionClient
     assertCanManageAgents(ctx);
 
     const blueprint = getBlueprint(parsedInput.template, ctx.organization.name);
-    const slug = await createUniqueTeamSlug(ctx.organization.id, parsedInput.name);
+    const slug = await createUniqueTeamSlug(
+      ctx.organization.id,
+      parsedInput.name
+    );
 
     const team = await prisma.$transaction(async (tx) => {
       const createdTeam = await tx.agentTeam.create({
@@ -123,6 +124,12 @@ export const createAgentTeam = authOrganizationActionClient
       organizationId: ctx.organization.id,
       teamId: team.id,
       cron: team.cadenceCron
+    });
+
+    await maybeQueueAutoDeployForTeam({
+      organizationId: ctx.organization.id,
+      teamId: team.id,
+      requestedByUserId: ctx.session.user.id
     });
 
     updateAgentCacheTags(ctx.organization.id);

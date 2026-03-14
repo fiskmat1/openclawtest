@@ -1,4 +1,6 @@
 import {
+  AgentControlChannelStatus,
+  AgentControlChannelType,
   AgentDeploymentStatus,
   AgentRole,
   AgentRunStatus,
@@ -6,8 +8,8 @@ import {
   AgentRuntimeStatus,
   AgentTeamStatus,
   AgentTeamTemplate,
-  ApprovalRiskLevel,
   ApprovalRequestStatus,
+  ApprovalRiskLevel,
   BrowserProfileStatus,
   ProviderConnectionStatus,
   ProviderConnectionType
@@ -28,10 +30,12 @@ export const agentTeamStatusLabels: Record<AgentTeamStatus, string> = {
   [AgentTeamStatus.ARCHIVED]: 'Archived'
 };
 
-export const agentRuntimeProviderLabels: Record<AgentRuntimeProvider, string> = {
-  [AgentRuntimeProvider.KILOCLAW]: 'KiloClaw',
-  [AgentRuntimeProvider.SELF_HOSTED]: 'Self-hosted'
-};
+export const agentRuntimeProviderLabels: Record<AgentRuntimeProvider, string> =
+  {
+    [AgentRuntimeProvider.KILOCLAW]: 'KiloClaw (legacy)',
+    [AgentRuntimeProvider.E2B]: 'E2B Desktop',
+    [AgentRuntimeProvider.SELF_HOSTED]: 'Self-hosted'
+  };
 
 export const agentRuntimeStatusLabels: Record<AgentRuntimeStatus, string> = {
   [AgentRuntimeStatus.PENDING]: 'Pending',
@@ -85,9 +89,11 @@ export const providerConnectionTypeLabels: Record<
   ProviderConnectionType,
   string
 > = {
-  [ProviderConnectionType.KILO]: 'Kilo',
+  [ProviderConnectionType.KILO]: 'Kilo (legacy)',
+  [ProviderConnectionType.E2B]: 'E2B',
   [ProviderConnectionType.OPENCLAW]: 'OpenClaw',
-  [ProviderConnectionType.KERNEL]: 'Kernel',
+  [ProviderConnectionType.KERNEL]: 'Kernel (legacy)',
+  [ProviderConnectionType.TELEGRAM]: 'Telegram',
   [ProviderConnectionType.TIKTOK]: 'TikTok'
 };
 
@@ -101,13 +107,30 @@ export const providerConnectionStatusLabels: Record<
   [ProviderConnectionStatus.ERROR]: 'Error'
 };
 
-export const browserProfileStatusLabels: Record<BrowserProfileStatus, string> = {
-  [BrowserProfileStatus.READY]: 'Ready',
-  [BrowserProfileStatus.REQUIRES_LOGIN]: 'Requires login',
-  [BrowserProfileStatus.SYNCING]: 'Syncing',
-  [BrowserProfileStatus.ERROR]: 'Error',
-  [BrowserProfileStatus.ARCHIVED]: 'Archived'
+export const agentControlChannelTypeLabels: Record<
+  AgentControlChannelType,
+  string
+> = {
+  [AgentControlChannelType.TELEGRAM]: 'Telegram'
 };
+
+export const agentControlChannelStatusLabels: Record<
+  AgentControlChannelStatus,
+  string
+> = {
+  [AgentControlChannelStatus.ACTIVE]: 'Active',
+  [AgentControlChannelStatus.PAUSED]: 'Paused',
+  [AgentControlChannelStatus.ERROR]: 'Error'
+};
+
+export const browserProfileStatusLabels: Record<BrowserProfileStatus, string> =
+  {
+    [BrowserProfileStatus.READY]: 'Ready',
+    [BrowserProfileStatus.REQUIRES_LOGIN]: 'Requires login',
+    [BrowserProfileStatus.SYNCING]: 'Syncing',
+    [BrowserProfileStatus.ERROR]: 'Error',
+    [BrowserProfileStatus.ARCHIVED]: 'Archived'
+  };
 
 export const agentRoleLabels: Record<AgentRole, string> = {
   [AgentRole.SUPERVISOR]: 'Supervisor',

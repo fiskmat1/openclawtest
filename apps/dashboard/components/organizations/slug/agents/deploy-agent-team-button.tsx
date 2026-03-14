@@ -26,7 +26,7 @@ export function DeployAgentTeamButton({
         startTransition(async () => {
           const result = await requestAgentDeployment({
             teamId,
-            provider: AgentRuntimeProvider.KILOCLAW
+            provider: AgentRuntimeProvider.E2B
           });
 
           if (

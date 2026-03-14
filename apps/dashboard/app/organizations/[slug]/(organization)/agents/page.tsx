@@ -6,15 +6,24 @@ import {
   agentTeamStatusLabels,
   providerConnectionStatusLabels
 } from '@workspace/agents';
-import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert';
-import { Card, CardContent, CardHeader, CardTitle } from '@workspace/ui/components/card';
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle
+} from '@workspace/ui/components/alert';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle
+} from '@workspace/ui/components/card';
 
-import { CreateAgentTeamButton } from '~/components/organizations/slug/agents/create-agent-team-button';
-import { AgentsPageShell } from '~/components/organizations/slug/agents/agents-page-shell';
 import { AgentStatusBadge } from '~/components/organizations/slug/agents/agent-status-badge';
-import { getApprovalRequests } from '~/data/agents/get-approval-requests';
+import { AgentsPageShell } from '~/components/organizations/slug/agents/agents-page-shell';
+import { CreateAgentTeamButton } from '~/components/organizations/slug/agents/create-agent-team-button';
 import { getAgentOverview } from '~/data/agents/get-agent-overview';
 import { getAgentTeams } from '~/data/agents/get-agent-teams';
+import { getApprovalRequests } from '~/data/agents/get-approval-requests';
 import { getProviderConnections } from '~/data/agents/get-provider-connections';
 import { createTitle } from '~/lib/formatters';
 
@@ -33,14 +42,16 @@ export default async function AgentsOverviewPage(): Promise<React.JSX.Element> {
   return (
     <AgentsPageShell
       title="Agents"
-      info="Cloud-first OpenClaw operations, approvals, and last-mile automation."
+      info="E2B-powered OpenClaw operations, Telegram control channels, approvals, and live computer use."
       actions={<CreateAgentTeamButton size="sm" />}
     >
       <div className="space-y-6">
         <Alert variant="info">
           <AlertTitle>API-first automation</AlertTitle>
           <AlertDescription>
-            Deployments, supervision, and publishing are designed to prefer provider APIs and durable jobs first, with browser automation reserved for the unsupported last mile.
+            Deployments, supervision, Telegram routing, and publishing prefer
+            provider APIs and durable jobs first, with desktop automation
+            reserved for the unsupported last mile.
           </AlertDescription>
         </Alert>
 
@@ -103,7 +114,9 @@ export default async function AgentsOverviewPage(): Promise<React.JSX.Element> {
                       <div>
                         <p className="font-medium">{team.name}</p>
                         <p className="text-sm text-muted-foreground">
-                          {team.description ?? team.desiredOutcome ?? 'No description yet.'}
+                          {team.description ??
+                            team.desiredOutcome ??
+                            'No description yet.'}
                         </p>
                       </div>
                       <AgentStatusBadge
@@ -120,7 +133,8 @@ export default async function AgentsOverviewPage(): Promise<React.JSX.Element> {
                 ))
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  No agent teams yet. Create one to start orchestrating OpenClaw workers.
+                  No agent teams yet. Create one to start provisioning E2B
+                  desktops and OpenClaw sessions automatically.
                 </p>
               )}
             </CardContent>
@@ -139,7 +153,12 @@ export default async function AgentsOverviewPage(): Promise<React.JSX.Element> {
                   </p>
                   <AgentStatusBadge
                     status={overview.latestRun.status}
-                    label={agentRunStatusLabels[overview.latestRun.status as keyof typeof agentRunStatusLabels] ?? overview.latestRun.status}
+                    label={
+                      agentRunStatusLabels[
+                        overview.latestRun
+                          .status as keyof typeof agentRunStatusLabels
+                      ] ?? overview.latestRun.status
+                    }
                   />
                 </div>
               ) : null}
@@ -164,14 +183,17 @@ export default async function AgentsOverviewPage(): Promise<React.JSX.Element> {
                   </p>
                   <AgentStatusBadge
                     status={connections[0].status}
-                    label={providerConnectionStatusLabels[connections[0].status]}
+                    label={
+                      providerConnectionStatusLabels[connections[0].status]
+                    }
                   />
                 </div>
               ) : null}
 
               {!overview.latestRun && !approvals[0] && !connections[0] ? (
                 <p className="text-sm text-muted-foreground">
-                  Deploy a team and connect integrations to start receiving execution signals here.
+                  Deploy a team and connect integrations to start receiving
+                  execution signals here.
                 </p>
               ) : null}
             </CardContent>
