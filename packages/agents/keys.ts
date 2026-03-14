@@ -13,6 +13,14 @@ export const keys = () =>
       AGENTS_E2B_API_KEY: z.string().optional(),
       AGENTS_E2B_TEMPLATE: z.string().optional(),
       AGENTS_E2B_TIMEOUT_MS: z.coerce.number().int().positive().optional(),
+      AGENTS_OPENAI_API_KEY: z.string().optional(),
+      AGENTS_OPENAI_BASE_URL: z
+        .url()
+        .optional()
+        .default('https://api.openai.com/v1'),
+      AGENTS_OPENAI_MODEL: z.string().optional().default('gpt-5.4'),
+      AGENTS_OPENAI_ORGANIZATION: z.string().optional(),
+      AGENTS_OPENAI_PROJECT: z.string().optional(),
       AGENTS_KILO_API_BASE_URL: z
         .url()
         .optional()
@@ -38,6 +46,11 @@ export const keys = () =>
       AGENTS_E2B_API_KEY: process.env.AGENTS_E2B_API_KEY,
       AGENTS_E2B_TEMPLATE: process.env.AGENTS_E2B_TEMPLATE,
       AGENTS_E2B_TIMEOUT_MS: process.env.AGENTS_E2B_TIMEOUT_MS,
+      AGENTS_OPENAI_API_KEY: process.env.AGENTS_OPENAI_API_KEY,
+      AGENTS_OPENAI_BASE_URL: process.env.AGENTS_OPENAI_BASE_URL,
+      AGENTS_OPENAI_MODEL: process.env.AGENTS_OPENAI_MODEL,
+      AGENTS_OPENAI_ORGANIZATION: process.env.AGENTS_OPENAI_ORGANIZATION,
+      AGENTS_OPENAI_PROJECT: process.env.AGENTS_OPENAI_PROJECT,
       AGENTS_KILO_API_BASE_URL: process.env.AGENTS_KILO_API_BASE_URL,
       AGENTS_KERNEL_API_KEY: process.env.AGENTS_KERNEL_API_KEY,
       AGENTS_KERNEL_API_BASE_URL: process.env.AGENTS_KERNEL_API_BASE_URL,

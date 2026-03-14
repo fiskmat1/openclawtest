@@ -55,3 +55,4 @@ terraform apply \
 - This is designed as a shared multi-tenant control plane for the app, not one deployment per customer.
 - The app should store the resulting RPC endpoint in the OpenClaw provider connection metadata as `rpcEndpoint`.
 - Use the E2B provider connection for per-team desktop runtime provisioning; this Hetzner slice only hosts the shared gateway.
+- Production deployments should also configure an `OpenAI` provider connection so the computer-use supervisor can drive the E2B desktop while OpenClaw stays focused on subordinate specialist sessions.

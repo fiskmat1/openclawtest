@@ -11,6 +11,7 @@ import {
 
 import {
   createOpenClawGatewayClient,
+  createOpenAIComputerUseSupervisorClient,
   createE2BDesktopProviderClient,
   createKiloClawProviderClient,
   createTelegramBotClient,
@@ -308,6 +309,91 @@ test('OpenClaw client uses tools invoke endpoint', async () => {
     ]);
   } finally {
     globalThis.fetch = originalFetch;
+  }
+});
+
+test('OpenAI computer-use supervisor client normalizes response turns', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.AGENTS_OPENAI_API_KEY;
+  const originalModel = process.env.AGENTS_OPENAI_MODEL;
+  const originalBaseUrl = process.env.AGENTS_OPENAI_BASE_URL;
+  const originalKiloBaseUrl = process.env.AGENTS_KILO_API_BASE_URL;
+  const originalOpenClawEndpoint = process.env.AGENTS_OPENCLAW_RPC_ENDPOINT;
+
+  globalThis.fetch = (async (input, init) => {
+    assert.equal(String(input), 'https://api.openai.com/v1/responses');
+    assert.equal(init?.method, 'POST');
+
+    const body = JSON.parse(String(init?.body)) as {
+      model: string;
+      tools: Array<{ type: string }>;
+    };
+
+    assert.equal(body.model, 'gpt-5.4');
+    assert.equal(body.tools[0]?.type, 'computer');
+
+    return new Response(
+      JSON.stringify({
+        id: 'resp_123',
+        output: [
+          {
+            type: 'computer_call',
+            call_id: 'call_123',
+            pending_safety_checks: [],
+            actions: [
+              {
+                type: 'click',
+                x: 10,
+                y: 20,
+                button: 'left'
+              }
+            ]
+          },
+          {
+            type: 'message',
+            role: 'assistant',
+            content: [
+              {
+                type: 'output_text',
+                text: 'Opened the app.'
+              }
+            ]
+          }
+        ]
+      }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+  }) as typeof fetch;
+
+  try {
+    process.env.AGENTS_OPENAI_API_KEY = 'test-openai-key';
+    process.env.AGENTS_OPENAI_MODEL = 'gpt-5.4';
+    process.env.AGENTS_OPENAI_BASE_URL = 'https://api.openai.com/v1';
+    process.env.AGENTS_KILO_API_BASE_URL = 'https://kilo.example.com';
+    process.env.AGENTS_OPENCLAW_RPC_ENDPOINT = 'https://openclaw.example.com/rpc';
+
+    const client = createOpenAIComputerUseSupervisorClient();
+    const result = await client.createTurn({
+      task: 'Inspect the desktop.',
+      systemPrompt: 'You supervise the runtime.'
+    });
+
+    assert.equal(result.responseId, 'resp_123');
+    assert.equal(result.outputText, 'Opened the app.');
+    assert.equal(result.turns[0]?.callId, 'call_123');
+    assert.equal(result.turns[0]?.actions[0]?.type, 'click');
+  } finally {
+    globalThis.fetch = originalFetch;
+    process.env.AGENTS_OPENAI_API_KEY = originalApiKey;
+    process.env.AGENTS_OPENAI_MODEL = originalModel;
+    process.env.AGENTS_OPENAI_BASE_URL = originalBaseUrl;
+    process.env.AGENTS_KILO_API_BASE_URL = originalKiloBaseUrl;
+    process.env.AGENTS_OPENCLAW_RPC_ENDPOINT = originalOpenClawEndpoint;
   }
 });
 

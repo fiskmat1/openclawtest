@@ -1,15 +1,12 @@
 'use server';
 
 import {
-  createGenericOperationsBlueprint,
+  planAgentTeamBlueprint,
   createTeamSlug,
-  createTikTokMarketingBlueprint
 } from '@workspace/agents/templates';
 import {
   AgentAuditEventType,
-  AgentRole,
   AgentStatus,
-  AgentTeamTemplate
 } from '@workspace/database';
 import { prisma } from '@workspace/database/client';
 
@@ -22,10 +19,11 @@ import {
 import { authOrganizationActionClient } from '~/actions/safe-action';
 import { createAgentTeamSchema } from '~/schemas/agents/create-agent-team-schema';
 
-function getBlueprint(template: AgentTeamTemplate, organizationName: string) {
-  return template === AgentTeamTemplate.TIKTOK_MARKETING
-    ? createTikTokMarketingBlueprint(organizationName)
-    : createGenericOperationsBlueprint(organizationName);
+function parseTextLines(value?: string): string[] {
+  return (value ?? '')
+    .split(/\r?\n|,/)
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
 }
 
 async function createUniqueTeamSlug(
@@ -60,7 +58,23 @@ export const createAgentTeam = authOrganizationActionClient
   .action(async ({ parsedInput, ctx }) => {
     assertCanManageAgents(ctx);
 
-    const blueprint = getBlueprint(parsedInput.template, ctx.organization.name);
+    const blueprint = planAgentTeamBlueprint({
+      organizationName: ctx.organization.name,
+      name: parsedInput.name,
+      template: parsedInput.template,
+      description: parsedInput.description,
+      desiredOutcome: parsedInput.desiredOutcome,
+      mission: parsedInput.mission,
+      cadenceCron: parsedInput.cadenceCron,
+      autonomyLevel: parsedInput.autonomyLevel,
+      operatingDomains: parseTextLines(parsedInput.operatingDomainsText),
+      requestedRoles: parseTextLines(parsedInput.agentRoleHintsText),
+      telegramEnabled: parsedInput.telegramEnabled,
+      browserEnabled: parsedInput.browserEnabled,
+      accountTargets: parseTextLines(parsedInput.accountTargetsText),
+      allowedDomains: parseTextLines(parsedInput.allowedDomainsText),
+      operatorInstructions: parsedInput.operatorInstructions
+    });
     const slug = await createUniqueTeamSlug(
       ctx.organization.id,
       parsedInput.name
@@ -70,16 +84,18 @@ export const createAgentTeam = authOrganizationActionClient
       const createdTeam = await tx.agentTeam.create({
         data: {
           organizationId: ctx.organization.id,
-          name: parsedInput.name,
+          name: blueprint.name,
           slug,
-          template: parsedInput.template,
-          description: parsedInput.description ?? blueprint.description,
-          desiredOutcome:
-            parsedInput.desiredOutcome ?? blueprint.desiredOutcome,
-          cadenceCron: parsedInput.cadenceCron ?? blueprint.cadenceCron,
+          template: blueprint.template,
+          description: blueprint.description,
+          desiredOutcome: blueprint.desiredOutcome,
+          teamSpec: blueprint.teamSpec,
+          blueprint: blueprint,
           approvalPolicy: blueprint.approvalPolicy,
           promptPack: blueprint.promptPack,
-          skillPack: blueprint.skillPack
+          skillPack: blueprint.skillPack,
+          cadenceCron: blueprint.cadenceCron,
+          supervisorConfig: blueprint.supervisorConfig
         },
         select: {
           id: true,
@@ -105,11 +121,14 @@ export const createAgentTeam = authOrganizationActionClient
           teamId: createdTeam.id,
           actorUserId: ctx.session.user.id,
           eventType: AgentAuditEventType.TEAM_CREATED,
-          summary: `Created ${parsedInput.template === AgentTeamTemplate.TIKTOK_MARKETING ? 'TikTok marketing' : 'operations'} team ${parsedInput.name}.`,
+          summary: `Created autonomous team ${blueprint.name}.`,
           metadata: {
             slug,
-            template: parsedInput.template,
-            agentRoles: blueprint.agents.map((agent) => agent.role)
+            template: blueprint.template,
+            autonomyLevel: blueprint.teamSpec.autonomyLevel,
+            operatingDomains: blueprint.teamSpec.operatingDomains,
+            agentRoles: blueprint.agents.map((agent) => agent.role),
+            supervisorProvider: blueprint.supervisorConfig.provider
           }
         },
         select: {

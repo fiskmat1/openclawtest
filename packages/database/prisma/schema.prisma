@@ -230,6 +230,7 @@ enum ProviderConnectionType {
   KILO     @map("kilo")
   E2B      @map("e2b")
   OPENCLAW @map("openclaw")
+  OPENAI   @map("openai")
   KERNEL   @map("kernel")
   TELEGRAM @map("telegram")
   TIKTOK   @map("tiktok")
@@ -475,6 +476,9 @@ model AgentRuntime {
   lastHeartbeatAt   DateTime?
   configVersion     Int                   @default(1)
   metadata          Json?
+  supervisorState   Json?
+  lockKey           String?               @db.VarChar(255)
+  lockExpiresAt     DateTime?
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
   organization      Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
@@ -496,10 +500,13 @@ model AgentTeam {
   template        AgentTeamTemplate     @default(GENERIC_OPERATIONS)
   description     String?               @db.VarChar(2000)
   desiredOutcome  String?               @db.Text
+  teamSpec        Json?
+  blueprint       Json?
   promptPack      Json?
   skillPack       Json?
   cadenceCron     String?               @db.VarChar(255)
   approvalPolicy  Json?
+  supervisorConfig Json?
   status          AgentTeamStatus       @default(DRAFT)
   lastRunAt       DateTime?
   nextRunAt       DateTime?

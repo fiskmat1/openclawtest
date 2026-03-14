@@ -26,6 +26,7 @@ import { AgentsPageShell } from '~/components/organizations/slug/agents/agents-p
 import { CreateAgentTeamButton } from '~/components/organizations/slug/agents/create-agent-team-button';
 import { DeployAgentTeamButton } from '~/components/organizations/slug/agents/deploy-agent-team-button';
 import { RunAgentTeamButton } from '~/components/organizations/slug/agents/run-agent-team-button';
+import { ToggleAgentTeamButton } from '~/components/organizations/slug/agents/toggle-agent-team-button';
 import { getAgentTeams } from '~/data/agents/get-agent-teams';
 import { createTitle } from '~/lib/formatters';
 
@@ -39,16 +40,16 @@ export default async function AgentTeamsPage(): Promise<React.JSX.Element> {
   return (
     <AgentsPageShell
       title="Agent teams"
-      info="Seed specialized OpenClaw teams, auto-deploy them onto E2B desktops, and trigger supervisor runs."
+      info="Describe an always-on mission, generate the specialist team blueprint, auto-deploy it onto E2B, and keep it supervised continuously."
       actions={<CreateAgentTeamButton size="sm" />}
     >
       <div className="space-y-6">
         <Alert variant="info">
-          <AlertTitle>TikTok marketing first</AlertTitle>
+          <AlertTitle>Spec-first autonomous teams</AlertTitle>
           <AlertDescription>
-            The first production template is optimized for TikTok marketing, but
-            the control plane now provisions shared OpenClaw execution with E2B
-            live desktops for broader supervised workflows.
+            Start from a mission and operating domains, then let the planner
+            generate the OpenAI supervisor instructions and the OpenClaw
+            specialist mesh automatically.
           </AlertDescription>
         </Alert>
 
@@ -72,9 +73,18 @@ export default async function AgentTeamsPage(): Promise<React.JSX.Element> {
                     <div>
                       <p className="font-medium">{team.name}</p>
                       <p className="max-w-md whitespace-normal text-sm text-muted-foreground">
-                        {team.description ??
+                        {team.mission ??
+                          team.description ??
                           team.desiredOutcome ??
                           'No description yet.'}
+                      </p>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {team.autonomyLevel ?? 'guarded-autonomous'}
+                        {team.operatingDomains.length > 0
+                          ? ` • ${team.operatingDomains.join(', ')}`
+                          : ''}
+                        {team.telegramEnabled ? ' • telegram' : ''}
+                        {team.browserEnabled ? ' • computer-use' : ''}
                       </p>
                     </div>
                   </TableCell>
@@ -98,6 +108,12 @@ export default async function AgentTeamsPage(): Promise<React.JSX.Element> {
                   <TableCell>{team.pendingApprovalCount}</TableCell>
                   <TableCell>
                     <div className="flex justify-end gap-2">
+                      <ToggleAgentTeamButton
+                        teamId={team.id}
+                        status={team.status}
+                        size="sm"
+                        variant="outline"
+                      />
                       <RunAgentTeamButton
                         teamId={team.id}
                         size="sm"
@@ -116,8 +132,8 @@ export default async function AgentTeamsPage(): Promise<React.JSX.Element> {
         ) : (
           <div className="rounded-lg border border-dashed p-8 text-center">
             <p className="text-sm text-muted-foreground">
-              No teams yet. Start with the TikTok marketing template, then
-              connect E2B and OpenClaw so new teams can deploy automatically.
+              No teams yet. Describe the mission, connect OpenAI, E2B, and
+              OpenClaw, then let the worker keep the team running continuously.
             </p>
             <div className="mt-4">
               <CreateAgentTeamButton />

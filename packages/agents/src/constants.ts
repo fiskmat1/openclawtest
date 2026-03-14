@@ -92,6 +92,7 @@ export const providerConnectionTypeLabels: Record<
   [ProviderConnectionType.KILO]: 'Kilo (legacy)',
   [ProviderConnectionType.E2B]: 'E2B',
   [ProviderConnectionType.OPENCLAW]: 'OpenClaw',
+  [ProviderConnectionType.OPENAI]: 'OpenAI',
   [ProviderConnectionType.KERNEL]: 'Kernel (legacy)',
   [ProviderConnectionType.TELEGRAM]: 'Telegram',
   [ProviderConnectionType.TIKTOK]: 'TikTok'

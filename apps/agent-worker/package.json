@@ -19,6 +19,7 @@
     "@workspace/agents": "workspace:*",
     "@workspace/database": "workspace:*",
     "@workspace/monitoring": "workspace:*",
+    "cron-parser": "^5.5.0",
     "pg-boss": "^11.1.2",
     "tsx": "^4.21.0"
   },

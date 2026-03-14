@@ -22,7 +22,14 @@ export async function POST(
   const webhookSecret = agentKeys().AGENTS_WEBHOOK_SECRET;
   const suppliedSecret = request.headers.get('x-agents-webhook-secret');
 
-  if (webhookSecret && suppliedSecret !== webhookSecret) {
+  if (!webhookSecret) {
+    return NextResponse.json(
+      { error: 'Agent webhooks are not configured.' },
+      { status: 503 }
+    );
+  }
+
+  if (suppliedSecret !== webhookSecret) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

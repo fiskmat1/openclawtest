@@ -169,10 +169,96 @@ export type TelegramSendMessageInput = {
   disableNotification?: boolean;
 };
 
+export type ComputerAction =
+  | {
+      type: 'click';
+      x: number;
+      y: number;
+      button?: 'left' | 'right' | 'wheel' | 'back' | 'forward';
+    }
+  | {
+      type: 'double_click';
+      x: number;
+      y: number;
+    }
+  | {
+      type: 'drag';
+      path: Array<{
+        x: number;
+        y: number;
+      }>;
+    }
+  | {
+      type: 'keypress';
+      keys: string[];
+    }
+  | {
+      type: 'move';
+      x: number;
+      y: number;
+    }
+  | {
+      type: 'scroll';
+      x?: number;
+      y?: number;
+      scroll_x?: number;
+      scroll_y?: number;
+    }
+  | {
+      type: 'type';
+      text: string;
+    }
+  | {
+      type: 'wait';
+    }
+  | {
+      type: 'screenshot';
+    };
+
+export type SupervisorTaskInput = {
+  task: string;
+  systemPrompt: string;
+  previousResponseId?: string;
+  callId?: string;
+  screenshotUrl?: string;
+  maxTurns?: number;
+  allowedDomains?: string[];
+  autoAcknowledgeSafetyChecks?: boolean;
+  acknowledgedSafetyChecks?: SupervisorSafetyCheck[];
+  metadata?: Record<string, unknown>;
+};
+
+export type SupervisorSafetyCheck = {
+  id: string;
+  code?: string;
+  message?: string;
+};
+
+export type SupervisorTurn = {
+  responseId?: string;
+  callId?: string;
+  actions: ComputerAction[];
+  pendingSafetyChecks: SupervisorSafetyCheck[];
+  outputText?: string;
+};
+
+export type SupervisorTaskResult = {
+  responseId?: string;
+  outputText?: string;
+  turns: SupervisorTurn[];
+  actionCount: number;
+  pendingSafetyChecks: SupervisorSafetyCheck[];
+  metadata?: Record<string, unknown>;
+};
+
 export interface TelegramBotClient {
   setWebhook(input: TelegramWebhookInput): Promise<{ ok: true }>;
   sendMessage(input: TelegramSendMessageInput): Promise<{
     ok: true;
     messageId?: string;
   }>;
+}
+
+export interface ComputerUseSupervisorClient {
+  createTurn(input: SupervisorTaskInput): Promise<SupervisorTaskResult>;
 }

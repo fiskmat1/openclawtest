@@ -99,12 +99,33 @@ async function hasOpenClawConnectivity(
   return Boolean(connection);
 }
 
+async function hasOpenAISupervisorConnectivity(
+  organizationId: string
+): Promise<boolean> {
+  if (Boolean(agentKeys().AGENTS_OPENAI_API_KEY)) {
+    return true;
+  }
+
+  const connection = await prisma.providerConnection.findFirst({
+    where: {
+      organizationId,
+      type: ProviderConnectionType.OPENAI,
+      status: ProviderConnectionStatus.CONNECTED
+    },
+    select: {
+      id: true
+    }
+  });
+
+  return Boolean(connection);
+}
+
 export async function maybeQueueAutoDeployForTeam(args: {
   organizationId: string;
   teamId: string;
   requestedByUserId?: string;
 }): Promise<boolean> {
-  const [team, runtimeConnection, openClawReady, latestDeployment] =
+  const [team, runtimeConnection, openClawReady, openAiReady, latestDeployment] =
     await Promise.all([
       prisma.agentTeam.findFirst({
         where: {
@@ -120,6 +141,7 @@ export async function maybeQueueAutoDeployForTeam(args: {
       }),
       getPreferredRuntimeConnection(args.organizationId),
       hasOpenClawConnectivity(args.organizationId),
+      hasOpenAISupervisorConnectivity(args.organizationId),
       prisma.agentDeployment.findFirst({
         where: {
           organizationId: args.organizationId,
@@ -135,7 +157,7 @@ export async function maybeQueueAutoDeployForTeam(args: {
       })
     ]);
 
-  if (!team || !runtimeConnection || !openClawReady) {
+  if (!team || !runtimeConnection || !openClawReady || !openAiReady) {
     return false;
   }
 

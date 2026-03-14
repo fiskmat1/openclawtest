@@ -23,3 +23,14 @@ test('parseAgentJobPayload rejects invalid publish payloads', () => {
     })
   );
 });
+
+test('parseAgentJobPayload accepts supervisor tick payloads', () => {
+  const payload = parseAgentJobPayload(AgentJobName.SupervisorTick, {
+    organizationId: '11111111-1111-4111-8111-111111111111',
+    teamId: '22222222-2222-4222-8222-222222222222',
+    runtimeId: '33333333-3333-4333-8333-333333333333',
+    reason: 'continuous'
+  });
+
+  assert.equal(payload.reason, 'continuous');
+});

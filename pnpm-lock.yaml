@@ -47,6 +47,9 @@ importers:
       '@workspace/monitoring':
         specifier: workspace:*
         version: link:../../packages/monitoring
+      cron-parser:
+        specifier: ^5.5.0
+        version: 5.5.0
       pg-boss:
         specifier: ^11.1.2
         version: 11.1.2

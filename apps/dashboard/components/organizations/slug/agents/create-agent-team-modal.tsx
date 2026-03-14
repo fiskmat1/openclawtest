@@ -6,6 +6,7 @@ import { type SubmitHandler } from 'react-hook-form';
 import { agentTeamTemplateLabels } from '@workspace/agents/constants';
 import { AgentTeamTemplate } from '@workspace/database';
 import { Button } from '@workspace/ui/components/button';
+import { Checkbox } from '@workspace/ui/components/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -48,10 +49,19 @@ export const CreateAgentTeamModal = NiceModal.create<NiceModalHocProps>(() => {
     mode: 'onSubmit',
     defaultValues: {
       name: '',
-      template: AgentTeamTemplate.TIKTOK_MARKETING,
+      template: AgentTeamTemplate.GENERIC_OPERATIONS,
       description: '',
+      mission: '',
       desiredOutcome: '',
-      cadenceCron: '0 */6 * * *'
+      operatingDomainsText: '',
+      agentRoleHintsText: '',
+      autonomyLevel: 'guarded-autonomous',
+      cadenceCron: '0 */4 * * *',
+      telegramEnabled: true,
+      browserEnabled: true,
+      accountTargetsText: '',
+      allowedDomainsText: '',
+      operatorInstructions: ''
     }
   });
 
@@ -82,9 +92,10 @@ export const CreateAgentTeamModal = NiceModal.create<NiceModalHocProps>(() => {
           onAnimationEndCapture={modal.handleAnimationEndCapture}
         >
           <DialogHeader>
-            <DialogTitle>Create agent team</DialogTitle>
+            <DialogTitle>Create autonomous team</DialogTitle>
             <DialogDescription>
-              Start with a production workflow template and let the worker create the seed agents for you.
+              Describe the operating mission, then let the planner generate the
+              OpenClaw specialists and OpenAI supervisor blueprint for you.
             </DialogDescription>
           </DialogHeader>
 
@@ -102,6 +113,7 @@ export const CreateAgentTeamModal = NiceModal.create<NiceModalHocProps>(() => {
                     <Input
                       type="text"
                       required
+                        placeholder="Customer support swarm"
                       disabled={methods.formState.isSubmitting}
                       {...field}
                     />
@@ -145,6 +157,24 @@ export const CreateAgentTeamModal = NiceModal.create<NiceModalHocProps>(() => {
 
             <FormField
               control={methods.control}
+              name="mission"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel required>Mission</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      disabled={methods.formState.isSubmitting}
+                      placeholder="Run the operation continuously, manage specialist agents, and keep progressing toward a concrete business outcome."
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={methods.control}
               name="desiredOutcome"
               render={({ field }) => (
                 <FormItem>
@@ -152,7 +182,7 @@ export const CreateAgentTeamModal = NiceModal.create<NiceModalHocProps>(() => {
                   <FormControl>
                     <Textarea
                       disabled={methods.formState.isSubmitting}
-                      placeholder="Describe what this team should optimize for."
+                      placeholder="Describe the exact business result this team should optimize for."
                       {...field}
                     />
                   </FormControl>
@@ -183,6 +213,35 @@ export const CreateAgentTeamModal = NiceModal.create<NiceModalHocProps>(() => {
 
               <FormField
                 control={methods.control}
+                name="autonomyLevel"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Autonomy level</FormLabel>
+                    <Select
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      disabled={methods.formState.isSubmitting}
+                    >
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select autonomy" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="supervised">Supervised</SelectItem>
+                        <SelectItem value="guarded-autonomous">
+                          Guarded autonomous
+                        </SelectItem>
+                        <SelectItem value="autonomous">Autonomous</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={methods.control}
                 name="description"
                 render={({ field }) => (
                   <FormItem>
@@ -196,6 +255,147 @@ export const CreateAgentTeamModal = NiceModal.create<NiceModalHocProps>(() => {
                       />
                     </FormControl>
                     <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField
+                control={methods.control}
+                name="operatingDomainsText"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Operating domains</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        disabled={methods.formState.isSubmitting}
+                        placeholder="telegram support&#10;lead qualification&#10;crm follow-up"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={methods.control}
+                name="agentRoleHintsText"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Requested agent roles</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        disabled={methods.formState.isSubmitting}
+                        placeholder="support supervisor&#10;conversation researcher&#10;reply drafter&#10;quality reviewer"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField
+                control={methods.control}
+                name="accountTargetsText"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Accounts and channels</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        disabled={methods.formState.isSubmitting}
+                        placeholder="Telegram bot inbox&#10;OpenClaw dashboard&#10;HubSpot workspace"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={methods.control}
+                name="allowedDomainsText"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Allowed domains</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        disabled={methods.formState.isSubmitting}
+                        placeholder="web.telegram.org&#10;app.hubspot.com&#10;openclaw.example.com"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <FormField
+              control={methods.control}
+              name="operatorInstructions"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Operator instructions</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      disabled={methods.formState.isSubmitting}
+                      placeholder="Optional guardrails, escalation notes, or house rules for the always-on supervisor."
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField
+                control={methods.control}
+                name="telegramEnabled"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between rounded-md border p-3">
+                    <div>
+                      <FormLabel>Telegram control</FormLabel>
+                      <p className="text-sm text-muted-foreground">
+                        Allow operators to bind chats and steer the supervisor.
+                      </p>
+                    </div>
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        disabled={methods.formState.isSubmitting}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={methods.control}
+                name="browserEnabled"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between rounded-md border p-3">
+                    <div>
+                      <FormLabel>Computer use</FormLabel>
+                      <p className="text-sm text-muted-foreground">
+                        Let the supervisor use the E2B desktop for last-mile
+                        browser work.
+                      </p>
+                    </div>
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        disabled={methods.formState.isSubmitting}
+                      />
+                    </FormControl>
                   </FormItem>
                 )}
               />

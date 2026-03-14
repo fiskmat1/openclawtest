@@ -94,9 +94,9 @@ export const CreateProviderConnectionModal =
             <DialogHeader>
               <DialogTitle>Add integration</DialogTitle>
               <DialogDescription>
-                Save provider credentials securely so E2B deployments, OpenClaw
-                sessions, Telegram control channels, and publishing can be
-                automated.
+                Save provider credentials securely so the OpenAI supervisor, E2B
+                desktops, OpenClaw sessions, Telegram control channels, and
+                publishing flows can run autonomously.
               </DialogDescription>
             </DialogHeader>
 
@@ -260,7 +260,7 @@ export const CreateProviderConnectionModal =
                     <FormControl>
                       <Textarea
                         disabled={methods.formState.isSubmitting}
-                        placeholder='{"preferredRegion":"eu-central","template":"desktop","rpcEndpoint":"https://openclaw.example.com/rpc","webhookBaseUrl":"https://dashboard.example.com"}'
+                        placeholder='{"preferredRegion":"eu-central","template":"desktop","rpcEndpoint":"https://openclaw.example.com/rpc","webhookBaseUrl":"https://dashboard.example.com","allowedDomains":["web.telegram.org","app.example.com"]}'
                         {...field}
                       />
                     </FormControl>

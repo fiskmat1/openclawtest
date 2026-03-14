@@ -42,16 +42,16 @@ export default async function AgentsOverviewPage(): Promise<React.JSX.Element> {
   return (
     <AgentsPageShell
       title="Agents"
-      info="E2B-powered OpenClaw operations, Telegram control channels, approvals, and live computer use."
+      info="OpenAI-supervised, E2B-backed, OpenClaw-operated teams with Telegram control, approvals, and 24/7 recovery loops."
       actions={<CreateAgentTeamButton size="sm" />}
     >
       <div className="space-y-6">
         <Alert variant="info">
-          <AlertTitle>API-first automation</AlertTitle>
+          <AlertTitle>Computer-use with guardrails</AlertTitle>
           <AlertDescription>
-            Deployments, supervision, Telegram routing, and publishing prefer
-            provider APIs and durable jobs first, with desktop automation
-            reserved for the unsupported last mile.
+            The supervisor now combines durable jobs, provider APIs, and E2B
+            computer use so long-running teams can keep operating without losing
+            auditability.
           </AlertDescription>
         </Alert>
 
@@ -114,7 +114,8 @@ export default async function AgentsOverviewPage(): Promise<React.JSX.Element> {
                       <div>
                         <p className="font-medium">{team.name}</p>
                         <p className="text-sm text-muted-foreground">
-                          {team.description ??
+                          {team.mission ??
+                            team.description ??
                             team.desiredOutcome ??
                             'No description yet.'}
                         </p>

@@ -57,7 +57,7 @@ export default async function AgentIntegrationsPage(): Promise<React.JSX.Element
   return (
     <AgentsPageShell
       title="Integrations"
-      info="Connect E2B runtimes, the shared OpenClaw gateway, Telegram control channels, and optional legacy providers."
+      info="Connect OpenAI for supervision, E2B for desktops, OpenClaw for subordinate sessions, Telegram for operator control, and optional publishing providers."
       actions={
         <>
           {kernelConnections.length > 0 ? (
@@ -118,7 +118,8 @@ export default async function AgentIntegrationsPage(): Promise<React.JSX.Element
               </Table>
             ) : (
               <div className="p-6 text-sm text-muted-foreground">
-                No integrations connected yet.
+                No integrations connected yet. Add OpenAI, E2B, and OpenClaw to
+                activate autonomous teams.
               </div>
             )}
           </CardContent>

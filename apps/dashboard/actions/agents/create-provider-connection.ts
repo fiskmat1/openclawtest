@@ -183,7 +183,8 @@ export const createProviderConnection = authOrganizationActionClient
 
     if (
       connection.type === ProviderConnectionType.E2B ||
-      connection.type === ProviderConnectionType.OPENCLAW
+      connection.type === ProviderConnectionType.OPENCLAW ||
+      connection.type === ProviderConnectionType.OPENAI
     ) {
       await maybeQueueAutoDeployForEligibleTeams({
         organizationId: ctx.organization.id,

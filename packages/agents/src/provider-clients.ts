@@ -14,6 +14,8 @@ import { decryptSecret } from './encryption';
 import type {
   BrowserProfileInput,
   BrowserProfileProviderClient,
+  ComputerAction,
+  ComputerUseSupervisorClient,
   BrowserProfileResult,
   GatewaySession,
   GatewayTranscriptEntry,
@@ -27,6 +29,9 @@ import type {
   SendGatewayMessageInput,
   SocialPublisherClient,
   SpawnGatewaySessionInput,
+  SupervisorSafetyCheck,
+  SupervisorTaskInput,
+  SupervisorTaskResult,
   TelegramBotClient,
   TelegramSendMessageInput,
   TelegramWebhookInput
@@ -112,6 +117,76 @@ async function fetchOpenClawToolResult<TResponse>(
   }
 
   return {} as TResponse;
+}
+
+type OpenAIResponseOutputText = {
+  type?: string;
+  text?: string;
+};
+
+type OpenAIResponseOutputItem = {
+  id?: string;
+  type?: string;
+  call_id?: string;
+  pending_safety_checks?: SupervisorSafetyCheck[];
+  actions?: ComputerAction[];
+  action?: ComputerAction;
+  role?: string;
+  content?: OpenAIResponseOutputText[];
+};
+
+type OpenAIResponse = {
+  id?: string;
+  output?: OpenAIResponseOutputItem[];
+};
+
+function getOpenAITextOutput(response: OpenAIResponse): string | undefined {
+  const messageItems = (response.output ?? []).filter(
+    (item) => item.type === 'message' && item.role === 'assistant'
+  );
+  const segments = messageItems.flatMap((item) =>
+    (item.content ?? [])
+      .filter((entry) => entry.type === 'output_text' && entry.text)
+      .map((entry) => entry.text?.trim() ?? '')
+      .filter((entry) => entry.length > 0)
+  );
+
+  return segments.length > 0 ? segments.join('\n\n') : undefined;
+}
+
+function getOpenAIComputerCall(
+  response: OpenAIResponse
+): OpenAIResponseOutputItem | undefined {
+  return (response.output ?? []).find((item) => item.type === 'computer_call');
+}
+
+function getOpenAIComputerActions(item: OpenAIResponseOutputItem): ComputerAction[] {
+  if (Array.isArray(item.actions) && item.actions.length > 0) {
+    return item.actions;
+  }
+
+  return item.action ? [item.action] : [];
+}
+
+function createOpenAIHeaders(args: {
+  apiKey: string;
+  organization?: string;
+  project?: string;
+}): Record<string, string> {
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${args.apiKey}`,
+    ...(args.organization
+      ? {
+          'OpenAI-Organization': args.organization
+        }
+      : {}),
+    ...(args.project
+      ? {
+          'OpenAI-Project': args.project
+        }
+      : {})
+  };
 }
 
 function getProviderConnectionMetadata(
@@ -572,6 +647,119 @@ export function createRuntimeProviderClient(
         `Managed runtime client is not available for ${provider}.`
       );
   }
+}
+
+export function createOpenAIComputerUseSupervisorClient(args?: {
+  apiKey?: string;
+  baseUrl?: string;
+  model?: string;
+  organization?: string;
+  project?: string;
+}): ComputerUseSupervisorClient {
+  const env = keys();
+  const apiKey = args?.apiKey ?? env.AGENTS_OPENAI_API_KEY;
+  const baseUrl = (args?.baseUrl ?? env.AGENTS_OPENAI_BASE_URL).replace(
+    /\/$/,
+    ''
+  );
+  const model = args?.model ?? env.AGENTS_OPENAI_MODEL;
+  const organization = args?.organization ?? env.AGENTS_OPENAI_ORGANIZATION;
+  const project = args?.project ?? env.AGENTS_OPENAI_PROJECT;
+
+  return {
+    async createTurn(input: SupervisorTaskInput): Promise<SupervisorTaskResult> {
+      if (!apiKey) {
+        throw new Error('Missing OpenAI API key for the computer-use supervisor.');
+      }
+
+      const requestBody = input.previousResponseId
+        ? {
+            model,
+            previous_response_id: input.previousResponseId,
+            instructions: input.systemPrompt,
+            tools: [
+              {
+                type: 'computer'
+              }
+            ],
+            input: input.callId
+              ? [
+                  {
+                    type: 'computer_call_output',
+                    call_id: input.callId,
+                    output: {
+                      type: 'computer_screenshot',
+                      image_url: input.screenshotUrl
+                    },
+                    ...(input.acknowledgedSafetyChecks &&
+                    input.acknowledgedSafetyChecks.length > 0
+                      ? {
+                          acknowledged_safety_checks:
+                            input.acknowledgedSafetyChecks
+                        }
+                      : {})
+                  }
+                ]
+              : [],
+            metadata: input.metadata
+          }
+        : {
+            model,
+            instructions: input.systemPrompt,
+            tools: [
+              {
+                type: 'computer'
+              }
+            ],
+            input: [
+              {
+                role: 'user',
+                content: [
+                  {
+                    type: 'input_text',
+                    text: input.task
+                  }
+                ]
+              }
+            ],
+            metadata: input.metadata
+          };
+
+      const response = await fetchJson<OpenAIResponse>(`${baseUrl}/responses`, {
+        method: 'POST',
+        headers: createOpenAIHeaders({
+          apiKey,
+          organization,
+          project
+        }),
+        body: JSON.stringify(requestBody)
+      });
+      const computerCall = getOpenAIComputerCall(response);
+      const turn = computerCall
+        ? {
+            responseId: response.id,
+            callId: computerCall.call_id,
+            actions: getOpenAIComputerActions(computerCall),
+            pendingSafetyChecks: computerCall.pending_safety_checks ?? [],
+            outputText: getOpenAITextOutput(response)
+          }
+        : {
+            responseId: response.id,
+            actions: [],
+            pendingSafetyChecks: [],
+            outputText: getOpenAITextOutput(response)
+          };
+
+      return {
+        responseId: response.id,
+        outputText: turn.outputText,
+        turns: [turn],
+        actionCount: turn.actions.length,
+        pendingSafetyChecks: turn.pendingSafetyChecks,
+        metadata: input.metadata
+      };
+    }
+  };
 }
 
 type OpenClawSessionListResult = {
