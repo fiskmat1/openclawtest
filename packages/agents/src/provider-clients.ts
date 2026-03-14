@@ -33,6 +33,10 @@ import type {
 } from './provider-types';
 
 type JsonRecord = Record<string, unknown>;
+type OpenClawToolTextContent = {
+  type?: string;
+  text?: string;
+};
 
 function createJsonHeaders(
   token?: string,
@@ -62,6 +66,52 @@ async function fetchJson<TResponse>(
   }
 
   return (await response.json()) as TResponse;
+}
+
+async function fetchOpenClawToolResult<TResponse>(
+  input: string,
+  init: RequestInit
+): Promise<TResponse> {
+  const response = await fetch(input, init);
+  const bodyText = await response.text();
+  const parsed = bodyText
+    ? (JSON.parse(bodyText) as {
+        ok?: boolean;
+        result?: {
+          details?: TResponse;
+          content?: OpenClawToolTextContent[];
+        };
+        error?: {
+          message?: string;
+        };
+      })
+    : undefined;
+
+  if (!response.ok) {
+    throw new Error(
+      parsed?.error?.message ??
+        `Request failed with status ${response.status}: ${bodyText || response.statusText}`
+    );
+  }
+
+  if (!parsed?.ok) {
+    throw new Error(
+      parsed?.error?.message ?? 'OpenClaw tool invocation returned an error.'
+    );
+  }
+
+  if (parsed.result?.details !== undefined) {
+    return parsed.result.details;
+  }
+
+  const textResult = parsed.result?.content?.find(
+    (entry) => entry.type === 'text' && typeof entry.text === 'string'
+  )?.text;
+  if (textResult) {
+    return JSON.parse(textResult) as TResponse;
+  }
+
+  return {} as TResponse;
 }
 
 function getProviderConnectionMetadata(
@@ -524,39 +574,162 @@ export function createRuntimeProviderClient(
   }
 }
 
-type RpcResponse<TData> = {
-  result?: TData;
-  error?: {
-    message?: string;
-  };
+type OpenClawSessionListResult = {
+  sessions?: Array<{
+    key?: string;
+    displayName?: string;
+    label?: string;
+    kind?: string;
+    active?: boolean;
+    metadata?: Record<string, unknown>;
+  }>;
 };
 
-async function callRpc<TData>(
+type OpenClawSessionHistoryResult = {
+  messages?: Array<{
+    id?: string;
+    role?: string;
+    content?: unknown;
+    createdAt?: string;
+    metadata?: Record<string, unknown>;
+  }>;
+};
+
+type OpenClawSessionSpawnResult = {
+  childSessionKey?: string;
+};
+
+function buildOpenClawToolsInvokeUrl(endpoint: string): string {
+  const url = new URL(endpoint);
+
+  if (url.protocol === 'ws:') {
+    url.protocol = 'http:';
+  } else if (url.protocol === 'wss:') {
+    url.protocol = 'https:';
+  }
+
+  const pathname = url.pathname.replace(/\/+$/, '');
+  if (pathname.endsWith('/rpc')) {
+    url.pathname = `${pathname.slice(0, -4) || ''}/tools/invoke`;
+  } else if (pathname.endsWith('/tools/invoke')) {
+    url.pathname = pathname || '/tools/invoke';
+  } else {
+    url.pathname = `${pathname}/tools/invoke` || '/tools/invoke';
+  }
+
+  url.search = '';
+  url.hash = '';
+
+  return url.toString();
+}
+
+async function invokeOpenClawTool<TData>(
   endpoint: string,
-  method: string,
-  params: Record<string, unknown>,
+  tool: string,
+  args: Record<string, unknown>,
   authToken?: string
 ): Promise<TData> {
-  const response = await fetchJson<RpcResponse<TData>>(endpoint, {
+  return fetchOpenClawToolResult<TData>(buildOpenClawToolsInvokeUrl(endpoint), {
     method: 'POST',
     headers: createJsonHeaders(authToken),
     body: JSON.stringify({
-      id: crypto.randomUUID(),
-      jsonrpc: '2.0',
-      method,
-      params
+      tool,
+      action: 'json',
+      args
     })
   });
+}
 
-  if (response.error) {
-    throw new Error(response.error.message ?? `RPC ${method} failed`);
+function toGatewaySession(row: {
+  key?: string;
+  displayName?: string;
+  label?: string;
+  kind?: string;
+  active?: boolean;
+  metadata?: Record<string, unknown>;
+}) {
+  if (!row.key) {
+    throw new Error('OpenClaw session list returned a row without a key.');
   }
 
-  if (!response.result) {
-    throw new Error(`RPC ${method} returned no result`);
+  return {
+    key: row.key,
+    title: row.displayName ?? row.label ?? row.key,
+    kind: row.kind,
+    active: row.active,
+    metadata: row.metadata
+  };
+}
+
+function stringifyOpenClawContent(content: unknown): string {
+  if (typeof content === 'string') {
+    return content;
   }
 
-  return response.result;
+  if (Array.isArray(content)) {
+    return content
+      .map((item) => {
+        if (typeof item === 'string') {
+          return item;
+        }
+
+        if (
+          item &&
+          typeof item === 'object' &&
+          'text' in item &&
+          typeof item.text === 'string'
+        ) {
+          return item.text;
+        }
+
+        return '';
+      })
+      .filter((item) => item.length > 0)
+      .join('\n');
+  }
+
+  if (content && typeof content === 'object') {
+    if ('text' in content && typeof content.text === 'string') {
+      return content.text;
+    }
+
+    return JSON.stringify(content);
+  }
+
+  return '';
+}
+
+function normalizeGatewayTranscriptEntries(
+  result: OpenClawSessionHistoryResult
+): GatewayTranscriptEntry[] {
+  return (result.messages ?? []).reduce<GatewayTranscriptEntry[]>(
+    (entries, entry, index) => {
+      const role =
+        entry.role === 'toolResult'
+          ? 'tool'
+          : entry.role === 'assistant' ||
+              entry.role === 'user' ||
+              entry.role === 'system' ||
+              entry.role === 'tool'
+            ? entry.role
+            : undefined;
+
+      if (!role) {
+        return entries;
+      }
+
+      entries.push({
+        id: entry.id ?? `openclaw-${index}`,
+        role,
+        content: stringifyOpenClawContent(entry.content),
+        createdAt: entry.createdAt,
+        metadata: entry.metadata
+      });
+
+      return entries;
+    },
+    []
+  );
 }
 
 export function createOpenClawGatewayClient(config: {
@@ -565,32 +738,66 @@ export function createOpenClawGatewayClient(config: {
 }): OpenClawGatewayClient {
   return {
     async listSessions() {
-      return callRpc<GatewaySession[]>(
+      const result = await invokeOpenClawTool<OpenClawSessionListResult>(
         config.endpoint,
         'sessions_list',
         {},
         config.authToken
       );
+
+      return (result.sessions ?? []).map((session) => toGatewaySession(session));
     },
     async spawnSession(input: SpawnGatewaySessionInput) {
-      return callRpc<GatewaySession>(
+      const result = await invokeOpenClawTool<OpenClawSessionSpawnResult>(
         config.endpoint,
         'sessions_spawn',
-        input,
+        {
+          task: input.prompt,
+          label: input.title
+        },
         config.authToken
       );
+
+      if (!result.childSessionKey) {
+        throw new Error(
+          'OpenClaw sessions_spawn did not return a child session key.'
+        );
+      }
+
+      return {
+        key: result.childSessionKey,
+        title: input.title,
+        kind: 'subagent',
+        metadata: input.metadata
+      };
     },
     async sendMessage(input: SendGatewayMessageInput) {
-      await callRpc(config.endpoint, 'sessions_send', input, config.authToken);
+      await invokeOpenClawTool(
+        config.endpoint,
+        'sessions_send',
+        {
+          sessionKey: input.sessionKey,
+          message: input.message,
+          timeoutSeconds: input.timeoutMs
+            ? Math.max(0, Math.ceil(input.timeoutMs / 1000))
+            : 0
+        },
+        config.authToken
+      );
       return { ok: true as const };
     },
     async getHistory(sessionKey: string) {
-      return callRpc<GatewayTranscriptEntry[]>(
+      const result = await invokeOpenClawTool<OpenClawSessionHistoryResult>(
         config.endpoint,
         'sessions_history',
-        { sessionKey },
+        {
+          sessionKey,
+          includeTools: true
+        },
         config.authToken
       );
+
+      return normalizeGatewayTranscriptEntries(result);
     }
   };
 }

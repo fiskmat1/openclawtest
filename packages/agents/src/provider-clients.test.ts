@@ -10,6 +10,7 @@ import {
 } from '@workspace/database';
 
 import {
+  createOpenClawGatewayClient,
   createE2BDesktopProviderClient,
   createKiloClawProviderClient,
   createTelegramBotClient,
@@ -144,6 +145,167 @@ test('Telegram bot client posts messages to Telegram API', async () => {
 
     assert.equal(result.ok, true);
     assert.equal(result.messageId, '42');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('OpenClaw client uses tools invoke endpoint', async () => {
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = (async (input, init) => {
+    assert.equal(
+      String(input),
+      'http://127.0.0.1:18789/tools/invoke'
+    );
+    assert.equal(init?.method, 'POST');
+
+    const body = JSON.parse(String(init?.body)) as {
+      tool: string;
+      args: Record<string, unknown>;
+    };
+
+    if (body.tool === 'sessions_list') {
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          result: {
+            details: {
+              sessions: [
+                {
+                  key: 'agent:main:subagent:test',
+                  displayName: 'Researcher'
+                }
+              ]
+            }
+          }
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+    }
+
+    if (body.tool === 'sessions_spawn') {
+      assert.equal(body.args.task, 'Follow the assigned goal.');
+      assert.equal(body.args.label, 'Researcher');
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          result: {
+            details: {
+              childSessionKey: 'agent:main:subagent:new'
+            }
+          }
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+    }
+
+    if (body.tool === 'sessions_send') {
+      assert.equal(body.args.sessionKey, 'agent:main:subagent:new');
+      assert.equal(body.args.message, 'hello');
+      assert.equal(body.args.timeoutSeconds, 2);
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          result: {
+            details: {
+              status: 'accepted'
+            }
+          }
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+    }
+
+    if (body.tool === 'sessions_history') {
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          result: {
+            details: {
+              messages: [
+                {
+                  id: '1',
+                  role: 'assistant',
+                  content: [{ text: 'Hello back' }]
+                },
+                {
+                  id: '2',
+                  role: 'toolResult',
+                  content: 'tool output'
+                }
+              ]
+            }
+          }
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+    }
+
+    throw new Error(`Unexpected tool ${body.tool}`);
+  }) as typeof fetch;
+
+  try {
+    const client = createOpenClawGatewayClient({
+      endpoint: 'http://127.0.0.1:18789/rpc',
+      authToken: 'token'
+    });
+
+    const sessions = await client.listSessions();
+    assert.equal(sessions[0]?.title, 'Researcher');
+
+    const session = await client.spawnSession({
+      teamSlug: 'team',
+      title: 'Researcher',
+      prompt: 'Follow the assigned goal.'
+    });
+    assert.equal(session.key, 'agent:main:subagent:new');
+
+    await client.sendMessage({
+      sessionKey: session.key,
+      message: 'hello',
+      timeoutMs: 2000
+    });
+
+    const history = await client.getHistory(session.key);
+    assert.deepEqual(history, [
+      {
+        id: '1',
+        role: 'assistant',
+        content: 'Hello back',
+        createdAt: undefined,
+        metadata: undefined
+      },
+      {
+        id: '2',
+        role: 'tool',
+        content: 'tool output',
+        createdAt: undefined,
+        metadata: undefined
+      }
+    ]);
   } finally {
     globalThis.fetch = originalFetch;
   }
