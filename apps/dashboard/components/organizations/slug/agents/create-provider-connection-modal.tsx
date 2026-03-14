@@ -3,7 +3,7 @@
 import NiceModal, { type NiceModalHocProps } from '@ebay/nice-modal-react';
 import { type SubmitHandler } from 'react-hook-form';
 
-import { providerConnectionTypeLabels } from '@workspace/agents';
+import { providerConnectionTypeLabels } from '@workspace/agents/constants';
 import { ProviderConnectionType } from '@workspace/database';
 import { Button } from '@workspace/ui/components/button';
 import {

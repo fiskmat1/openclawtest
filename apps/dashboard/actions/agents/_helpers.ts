@@ -1,14 +1,14 @@
-'use server';
+import 'server-only';
 
 import { updateTag } from 'next/cache';
 
 import {
-  AgentJobName,
   scheduleAgentJob,
   sendAgentJob,
   unscheduleAgentJob
-} from '@workspace/agents';
+} from '@workspace/agents/boss';
 import { keys as agentKeys } from '@workspace/agents/keys';
+import { AgentJobName } from '@workspace/agents/queue';
 import { getAuthOrganizationContext } from '@workspace/auth/context';
 import { ForbiddenError } from '@workspace/common/errors';
 import {

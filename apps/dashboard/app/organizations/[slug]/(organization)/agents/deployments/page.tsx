@@ -5,7 +5,7 @@ import Link from 'next/link';
 import {
   agentDeploymentStatusLabels,
   agentRuntimeProviderLabels
-} from '@workspace/agents';
+} from '@workspace/agents/constants';
 import {
   Alert,
   AlertDescription,

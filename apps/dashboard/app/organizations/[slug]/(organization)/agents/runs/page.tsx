@@ -1,9 +1,7 @@
 import * as React from 'react';
 import { type Metadata } from 'next';
 
-import {
-  agentRunStatusLabels
-} from '@workspace/agents';
+import { agentRunStatusLabels } from '@workspace/agents/constants';
 import { Card, CardContent, CardHeader, CardTitle } from '@workspace/ui/components/card';
 import {
   Table,

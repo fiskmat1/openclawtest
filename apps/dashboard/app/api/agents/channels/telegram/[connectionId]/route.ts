@@ -2,11 +2,11 @@ import { timingSafeEqual } from 'node:crypto';
 import { NextResponse, type NextRequest } from 'next/server';
 
 import {
-  AgentJobName,
   createTelegramBotClient,
-  decryptSecret,
-  sendAgentJob
-} from '@workspace/agents';
+} from '@workspace/agents/provider-clients';
+import { decryptSecret } from '@workspace/agents/encryption';
+import { sendAgentJob } from '@workspace/agents/boss';
+import { AgentJobName } from '@workspace/agents/queue';
 import {
   AgentControlChannelStatus,
   AgentControlChannelType,

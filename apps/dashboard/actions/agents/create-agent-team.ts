@@ -4,7 +4,7 @@ import {
   createGenericOperationsBlueprint,
   createTeamSlug,
   createTikTokMarketingBlueprint
-} from '@workspace/agents';
+} from '@workspace/agents/templates';
 import {
   AgentAuditEventType,
   AgentRole,

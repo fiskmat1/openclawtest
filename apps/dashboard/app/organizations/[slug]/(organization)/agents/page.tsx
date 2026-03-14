@@ -5,7 +5,7 @@ import {
   agentRunStatusLabels,
   agentTeamStatusLabels,
   providerConnectionStatusLabels
-} from '@workspace/agents';
+} from '@workspace/agents/constants';
 import {
   Alert,
   AlertDescription,

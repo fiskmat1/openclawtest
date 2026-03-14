@@ -1,6 +1,7 @@
 'use server';
 
-import { AgentJobName, sendAgentJob } from '@workspace/agents';
+import { sendAgentJob } from '@workspace/agents/boss';
+import { AgentJobName } from '@workspace/agents/queue';
 import {
   AgentAuditEventType,
   AgentRunStatus,

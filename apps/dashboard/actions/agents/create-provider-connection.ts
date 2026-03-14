@@ -1,6 +1,7 @@
 'use server';
 
-import { createTelegramBotClient, encryptSecret } from '@workspace/agents';
+import { encryptSecret } from '@workspace/agents/encryption';
+import { createTelegramBotClient } from '@workspace/agents/provider-clients';
 import {
   AgentAuditEventType,
   Prisma,

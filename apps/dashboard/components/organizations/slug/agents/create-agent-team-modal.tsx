@@ -3,7 +3,7 @@
 import NiceModal, { type NiceModalHocProps } from '@ebay/nice-modal-react';
 import { type SubmitHandler } from 'react-hook-form';
 
-import { agentTeamTemplateLabels } from '@workspace/agents';
+import { agentTeamTemplateLabels } from '@workspace/agents/constants';
 import { AgentTeamTemplate } from '@workspace/database';
 import { Button } from '@workspace/ui/components/button';
 import {

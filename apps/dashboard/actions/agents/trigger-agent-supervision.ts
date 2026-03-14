@@ -1,6 +1,7 @@
 'use server';
 
-import { AgentJobName, sendAgentJob } from '@workspace/agents';
+import { sendAgentJob } from '@workspace/agents/boss';
+import { AgentJobName } from '@workspace/agents/queue';
 import { AgentRunStatus, AgentRunTrigger } from '@workspace/database';
 import { prisma } from '@workspace/database/client';
 

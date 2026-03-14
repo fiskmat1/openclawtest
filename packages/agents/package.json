@@ -31,6 +31,14 @@
   "prettier": "@workspace/prettier-config",
   "exports": {
     ".": "./src/index.ts",
-    "./keys": "./keys.ts"
+    "./boss": "./src/boss.ts",
+    "./constants": "./src/constants.ts",
+    "./encryption": "./src/encryption.ts",
+    "./keys": "./keys.ts",
+    "./policies": "./src/policies.ts",
+    "./provider-clients": "./src/provider-clients.ts",
+    "./provider-types": "./src/provider-types.ts",
+    "./queue": "./src/queue.ts",
+    "./templates": "./src/templates.ts"
   }
 }

@@ -7,7 +7,7 @@ import {
   browserProfileStatusLabels,
   providerConnectionStatusLabels,
   providerConnectionTypeLabels
-} from '@workspace/agents';
+} from '@workspace/agents/constants';
 import { ProviderConnectionType } from '@workspace/database';
 import {
   Card,

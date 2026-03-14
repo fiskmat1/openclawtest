@@ -4,7 +4,7 @@ import { type Metadata } from 'next';
 import {
   approvalRequestStatusLabels,
   approvalRiskLevelLabels
-} from '@workspace/agents';
+} from '@workspace/agents/constants';
 import { ApprovalRequestStatus } from '@workspace/database';
 import {
   Table,

@@ -1,6 +1,6 @@
 'use server';
 
-import { createKernelBrowserProviderClient } from '@workspace/agents';
+import { createKernelBrowserProviderClient } from '@workspace/agents/provider-clients';
 import {
   AgentAuditEventType,
   BrowserProfileProvider,

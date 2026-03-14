@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
-import { AgentJobName, sendAgentJob } from '@workspace/agents';
+import { sendAgentJob } from '@workspace/agents/boss';
 import { keys as agentKeys } from '@workspace/agents/keys';
+import { AgentJobName } from '@workspace/agents/queue';
 
 type RouteContext = {
   params: Promise<{
