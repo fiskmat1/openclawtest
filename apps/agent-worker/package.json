@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@e2b/desktop": "^2.2.2",
     "@workspace/agents": "workspace:*",
     "@workspace/database": "workspace:*",
     "@workspace/monitoring": "workspace:*",

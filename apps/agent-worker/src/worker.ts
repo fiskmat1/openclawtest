@@ -1,5 +1,7 @@
+import { Buffer } from 'node:buffer';
 import { setTimeout as sleep } from 'node:timers/promises';
 import type PgBoss from 'pg-boss';
+import { Sandbox } from '@e2b/desktop';
 
 import {
   AgentJobName,
@@ -145,6 +147,250 @@ async function createGatewayClientForRuntime(args: {
   return createOpenClawGatewayClient({
     endpoint,
     authToken
+  });
+}
+
+async function getE2BApiKeyForOrganization(
+  organizationId: string
+): Promise<string | undefined> {
+  const connection = await getConnectedProviderConnection(
+    organizationId,
+    ProviderConnectionType.E2B
+  );
+
+  if (connection?.encryptedAccessToken) {
+    return decryptSecret(connection.encryptedAccessToken);
+  }
+
+  return agentKeys().AGENTS_E2B_API_KEY;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function buildInitialAgentSessionPrompt(args: {
+  teamName: string;
+  desiredOutcome?: string | null;
+  agentName: string;
+  agentRole: string;
+  agentGoal?: string | null;
+  systemPrompt?: string | null;
+}): string {
+  return [
+    `Team: ${args.teamName}`,
+    `Desired outcome: ${args.desiredOutcome ?? 'No desired outcome provided.'}`,
+    `Agent: ${args.agentName}`,
+    `Role: ${args.agentRole}`,
+    `Goal: ${args.agentGoal ?? 'No explicit goal provided.'}`,
+    `System prompt: ${args.systemPrompt ?? 'No explicit system prompt provided.'}`,
+    'You are one member of a supervised OpenClaw team. Stay aligned with the desired outcome, keep your replies concise and actionable, and be ready to coordinate with the supervisor through OpenClaw session tools when asked.'
+  ].join('\n');
+}
+
+function buildDesktopBriefHtml(args: {
+  teamName: string;
+  teamSlug: string;
+  desiredOutcome?: string | null;
+  controlUrl?: string | null;
+  gatewayUrl?: string | null;
+  externalRuntimeId?: string | null;
+  agents: Array<{
+    name: string;
+    role: string;
+    goal?: string | null;
+    providerSessionId?: string | null;
+  }>;
+}): string {
+  const generatedAt = new Date().toISOString();
+  const roster = args.agents
+    .map(
+      (agent) => `
+        <li>
+          <strong>${escapeHtml(agent.name)}</strong>
+          <div>Role: ${escapeHtml(agent.role)}</div>
+          <div>Goal: ${escapeHtml(agent.goal ?? 'No explicit goal provided.')}</div>
+          <div>Session: ${escapeHtml(agent.providerSessionId ?? 'Pending')}</div>
+        </li>
+      `
+    )
+    .join('');
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${escapeHtml(args.teamName)} runtime brief</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: Inter, system-ui, sans-serif;
+      }
+      body {
+        margin: 0;
+        background: #0f172a;
+        color: #e2e8f0;
+        padding: 32px;
+      }
+      main {
+        max-width: 960px;
+        margin: 0 auto;
+      }
+      h1, h2 {
+        margin-bottom: 12px;
+      }
+      section {
+        background: rgba(15, 23, 42, 0.75);
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        border-radius: 16px;
+        padding: 20px;
+        margin-bottom: 20px;
+      }
+      code {
+        display: inline-block;
+        background: rgba(30, 41, 59, 0.9);
+        padding: 2px 6px;
+        border-radius: 6px;
+      }
+      ul {
+        padding-left: 20px;
+      }
+      li + li {
+        margin-top: 12px;
+      }
+      .muted {
+        color: #94a3b8;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section>
+        <h1>${escapeHtml(args.teamName)}</h1>
+        <p class="muted">Generated at ${escapeHtml(generatedAt)}</p>
+        <p><strong>Team slug:</strong> <code>${escapeHtml(args.teamSlug)}</code></p>
+        <p><strong>Desired outcome:</strong> ${escapeHtml(args.desiredOutcome ?? 'No desired outcome provided.')}</p>
+      </section>
+      <section>
+        <h2>Runtime</h2>
+        <p><strong>Sandbox ID:</strong> <code>${escapeHtml(args.externalRuntimeId ?? 'Unavailable')}</code></p>
+        <p><strong>Live view:</strong> ${escapeHtml(args.controlUrl ?? 'Unavailable')}</p>
+        <p><strong>OpenClaw endpoint:</strong> ${escapeHtml(args.gatewayUrl ?? 'Unavailable')}</p>
+      </section>
+      <section>
+        <h2>Agent roster</h2>
+        <ul>${roster}</ul>
+      </section>
+      <section>
+        <h2>Operator notes</h2>
+        <p>This desktop is the shared workspace for the runtime. The supervisor should use the desired outcome above to coordinate the agent sessions, keep a running plan, and check that the researcher and reviewer stay aligned with the goal.</p>
+      </section>
+    </main>
+  </body>
+</html>`;
+}
+
+async function writeTextFileToSandbox(args: {
+  sandbox: Sandbox;
+  path: string;
+  content: string;
+}): Promise<void> {
+  const encoded = Buffer.from(args.content, 'utf8').toString('base64');
+  await args.sandbox.commands.run(
+    `python3 - <<'PY'
+from pathlib import Path
+import base64
+
+path = Path(${JSON.stringify(args.path)})
+path.parent.mkdir(parents=True, exist_ok=True)
+path.write_text(base64.b64decode(${JSON.stringify(encoded)}).decode('utf-8'))
+PY`
+  );
+}
+
+async function bootstrapRuntimeDesktop(args: {
+  organizationId: string;
+  runtimeId: string;
+  teamId: string;
+}): Promise<void> {
+  const runtime = await prisma.agentRuntime.findUnique({
+    where: {
+      id: args.runtimeId
+    },
+    include: {
+      team: {
+        include: {
+          agents: {
+            orderBy: {
+              createdAt: 'asc'
+            }
+          }
+        }
+      }
+    }
+  });
+
+  if (
+    !runtime ||
+    runtime.provider !== AgentRuntimeProvider.E2B ||
+    !runtime.externalRuntimeId
+  ) {
+    return;
+  }
+
+  const apiKey = await getE2BApiKeyForOrganization(args.organizationId);
+  if (!apiKey) {
+    return;
+  }
+
+  const briefPath = '/home/user/Desktop/openclaw-team-brief.html';
+  const sandbox = await Sandbox.connect(runtime.externalRuntimeId, {
+    apiKey
+  });
+  const html = buildDesktopBriefHtml({
+    teamName: runtime.team.name,
+    teamSlug: runtime.team.slug,
+    desiredOutcome: runtime.team.desiredOutcome,
+    controlUrl: runtime.controlUrl,
+    gatewayUrl: runtime.gatewayUrl,
+    externalRuntimeId: runtime.externalRuntimeId,
+    agents: runtime.team.agents.map((agent) => ({
+      name: agent.name,
+      role: agent.role,
+      goal: agent.goal,
+      providerSessionId: agent.providerSessionId
+    }))
+  });
+
+  await writeTextFileToSandbox({
+    sandbox,
+    path: briefPath,
+    content: html
+  });
+
+  try {
+    await sandbox.launch('google-chrome', `file://${briefPath}`);
+  } catch {
+    await sandbox.open(briefPath);
+  }
+
+  await prisma.agentRuntime.update({
+    where: {
+      id: runtime.id
+    },
+    data: {
+      metadata: {
+        ...toRecord(runtime.metadata),
+        desktopBriefPath: briefPath,
+        desktopBootstrappedAt: new Date().toISOString()
+      } as Prisma.InputJsonValue
+    }
   });
 }
 
@@ -328,6 +574,16 @@ async function handleDeployTeamJob(payload: unknown): Promise<void> {
         deployment.organizationId,
         runtime.id
       );
+      await bootstrapRuntimeDesktop({
+        organizationId: deployment.organizationId,
+        runtimeId: runtime.id,
+        teamId: deployment.teamId
+      });
+      await sendAgentJob(AgentJobName.SuperviseTeam, {
+        organizationId: deployment.organizationId,
+        teamId: deployment.teamId,
+        reason: 'deployment-bootstrap'
+      });
     }
 
     await notifyTeam({
@@ -516,9 +772,24 @@ async function maybeSyncGatewaySessions(
   }
 
   const sessions = await gateway.listSessions();
-  const agents = await prisma.agent.findMany({
-    where: { teamId }
-  });
+  const [team, agents] = await Promise.all([
+    prisma.agentTeam.findUnique({
+      where: {
+        id: teamId
+      },
+      select: {
+        name: true,
+        desiredOutcome: true
+      }
+    }),
+    prisma.agent.findMany({
+      where: { teamId }
+    })
+  ]);
+
+  if (!team) {
+    return;
+  }
 
   for (const agent of agents) {
     if (agent.providerSessionId) {
@@ -531,7 +802,14 @@ async function maybeSyncGatewaySessions(
       (await gateway.spawnSession({
         teamSlug: runtime.name,
         title: agent.name,
-        prompt: agent.systemPrompt ?? agent.goal ?? 'Follow the assigned goal.',
+        prompt: buildInitialAgentSessionPrompt({
+          teamName: team.name,
+          desiredOutcome: team.desiredOutcome,
+          agentName: agent.name,
+          agentRole: agent.role,
+          agentGoal: agent.goal,
+          systemPrompt: agent.systemPrompt
+        }),
         metadata: {
           role: agent.role
         }
@@ -600,6 +878,12 @@ async function executeGatewayAgentSessions(args: {
   });
 
   const outputs: GatewayAgentExecution[] = [];
+  const runtimeMetadata = toRecord(runtime.metadata);
+  const teamRoster = agents.map((agent) => ({
+    name: agent.name,
+    role: agent.role,
+    sessionKey: agent.providerSessionId ?? undefined
+  }));
 
   for (const agent of agents) {
     if (!agent.providerSessionId) {
@@ -635,7 +919,11 @@ async function executeGatewayAgentSessions(args: {
           agentName: agent.name,
           agentRole: agent.role,
           agentGoal: agent.goal,
-          systemPrompt: agent.systemPrompt
+          systemPrompt: agent.systemPrompt,
+          runtimeControlUrl: runtime.controlUrl,
+          workspaceBriefPath:
+            (runtimeMetadata.desktopBriefPath as string | undefined) ?? undefined,
+          teamRoster
         })
       });
 

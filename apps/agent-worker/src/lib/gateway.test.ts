@@ -9,6 +9,15 @@ test('buildAgentExecutionPrompt includes run and agent context', () => {
     desiredOutcome: 'Ship faster',
     reason: 'scheduled',
     runObjective: 'Prepare the next actions',
+    runtimeControlUrl: 'https://e2b.example.com/live',
+    workspaceBriefPath: '/home/user/Desktop/openclaw-team-brief.html',
+    teamRoster: [
+      {
+        name: 'Operations supervisor',
+        role: 'SUPERVISOR',
+        sessionKey: 'agent:main:supervisor'
+      }
+    ],
     agentName: 'Supervisor',
     agentRole: 'SUPERVISOR',
     agentGoal: 'Coordinate the team',
@@ -18,6 +27,8 @@ test('buildAgentExecutionPrompt includes run and agent context', () => {
   assert.match(prompt, /Team: Acme team/);
   assert.match(prompt, /Run reason: scheduled/);
   assert.match(prompt, /Agent: Supervisor/);
+  assert.match(prompt, /Runtime live view: https:\/\/e2b\.example\.com\/live/);
+  assert.match(prompt, /Team roster: Operations supervisor/);
   assert.match(prompt, /Reply with the concrete next actions/);
 });
 

@@ -35,6 +35,9 @@ importers:
 
   apps/agent-worker:
     dependencies:
+      '@e2b/desktop':
+        specifier: ^2.2.2
+        version: 2.2.2
       '@workspace/agents':
         specifier: workspace:*
         version: link:../../packages/agents
