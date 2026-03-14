@@ -7,12 +7,6 @@ CREATE TYPE "AgentControlChannelType" AS ENUM ('telegram');
 
 CREATE TYPE "AgentControlChannelStatus" AS ENUM ('active', 'paused', 'error');
 
-ALTER TABLE "AgentDeployment"
-ALTER COLUMN "provider" SET DEFAULT 'e2b';
-
-ALTER TABLE "AgentRuntime"
-ALTER COLUMN "provider" SET DEFAULT 'e2b';
-
 CREATE TABLE "AgentControlChannel" (
     "id" UUID NOT NULL,
     "organizationId" UUID NOT NULL,
